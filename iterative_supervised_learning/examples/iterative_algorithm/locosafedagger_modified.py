@@ -26,7 +26,7 @@ import sys
 import time
 import wandb
 
-# set random seet for reproducability
+# set random seed for reproducability
 # seed = 42
 # random.seed(seed)
 # np.random.seed(seed)
@@ -34,7 +34,7 @@ import wandb
 
 # login to wandb
 wandb.login()
-project_name = 'mod_safedagger_strict_1k_3'
+project_name = 'locosafedagger_modified'
 
 # specify safety bounds. If want default, set to None
 safety_bounds_dict = {
@@ -163,14 +163,139 @@ class LocoSafeDagger():
         print("Policy Network initialized")
         return network
     
-    def train_network(self):
-        pass
+    def train_network(self, network, batch_size=256, learning_rate=0.002, n_epoch=150):
+        """Train and validate the policy network with samples from the current dataset
+
+        Args:
+            network (_type_): policy network to train
+            batch_size (int, optional): batch size. Defaults to 256.
+            learning_rate (float, optional): learning rate. Defaults to 0.002.
+            n_epoch (int, optional): number of epochs to train. Defaults to 150.
+
+        Returns:
+            network: trained network
+        """             
+        
+        # get the training dataset size (use whole dataset)
+        database_size = len(self.database)
+
+        print("Dataset size: " + str(database_size))
+        print(f'Batch size: {batch_size}')
+        print(f'learning rate: {learning_rate}')
+        print(f'num of epochs: {n_epoch}')
+
+        # define training and test set size
+        n_train = int(self.n_train_frac*database_size)
+        n_test = database_size - n_train
+        
+        print(f'training data size: {n_train}')
+        print(f'validation data size: {n_test}')
+        
+        # Split data into training and validation
+        train_data, test_data = torch.utils.data.random_split(self.database, [n_train, n_test])
+        train_loader = DataLoader(train_data, batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(test_data, batch_size, shuffle=True, drop_last=True)
+        
+        # define training optimizer
+        
+        self.optimizer = torch.optim.Adam(network.parameters(), lr=learning_rate)
+            
+        tepoch = tqdm(range(n_epoch))
+        
+        # main training loop
+        for epoch in tepoch:
+            # set network to training mode
+            network.train()
+            
+            # training loss
+            train_loss, valid_loss = [], []
+            
+            # train network
+            for x, y in train_loader:
+                self.optimizer.zero_grad()
+                x, y = x.to(self.device).float(), y.to(self.device).float()
+                y_pred = network(x)
+                loss = self.criterion(y_pred, y)
+                
+                loss.backward()
+                self.optimizer.step()
+                train_loss.append(loss.item())
+            
+
+            # test network
+            test_running_loss = 0
+            network.eval()
+            for z, w in test_loader:
+                z, w = z.to(self.device).float(), w.to(self.device).float()
+                w_pred = network(z)
+                test_loss = self.criterion(w_pred, w)
+                valid_loss.append(test_loss.item())
+                
+            train_loss_avg = np.mean(train_loss)
+            valid_loss_avg = np.mean(valid_loss)
+            tepoch.set_postfix({'training loss': train_loss_avg,
+                                'validation loss': valid_loss_avg})
+            
+            # wandb log
+            wandb.log({'Training Loss': train_loss_avg,
+                       'Validation Loss': valid_loss_avg})
+            
+        return network
     
-    def save_network(self):
-        pass
+    def save_network(self, network, name='policy'):
+        """save trained network
+
+        Args:
+            network (_type_): network to save
+            name (str, optional): name of network to save. Defaults to 'policy'.
+        """        
+        os.makedirs(self.network_savepath, exist_ok=True)
+        
+        savepath =  self.network_savepath + "/"+name+".pth"
+        
+        payload = {'network': network,
+                #    'optimizer': self.optimizer,
+                #    'scheduler': self.scheduler,
+                   'norm_policy_input': None}
+        
+        if self.normalize_policy_input:
+            payload['norm_policy_input'] = self.database.get_database_mean_std()
+        
+        torch.save(payload, savepath)
+        print('Network Snapshot saved')
     
-    def save_dataset(self):
-        pass
+    def save_dataset(self, iter):
+        """save current database
+
+        Args:
+            iter (_type_): database iteration (just a number)
+        """
+           
+        print("saving dataset for iteration " + str(iter))
+        
+        # make directory
+        os.makedirs(self.dataset_savepath, exist_ok=True)
+        
+        # Get data len from dataset class
+        data_len = len(self.database)
+        
+        # save numpy datasets
+        with h5py.File(self.dataset_savepath + "/database_" + str(iter) + ".hdf5", 'w') as hf:
+            hf.create_dataset('states', data=self.database.states[:data_len])
+            hf.create_dataset('vc_goals', data=self.database.vc_goals[:data_len])
+            # hf.create_dataset('cc_goals', data=self.database.cc_goals[:data_len])
+            hf.create_dataset('actions', data=self.database.actions[:data_len]) 
+        
+        # save config as pickle only once
+        if os.path.exists(self.dataset_savepath + "/config.json") == False:
+            # convert hydra cfg to config dict
+            config_dict = OmegaConf.to_container(self.cfg, resolve=True)
+            
+            f = open(self.dataset_savepath + "/config.json", "w")
+            json.dump(config_dict, f, indent=4)
+            f.close()
+        
+        print("saved dataset at iteration " + str(iter))
     
     def warmup(self):
         pass
