@@ -143,7 +143,7 @@ class LocoSafeDagger():
         self.database = Database(limit=cfg.database_size, goal_type='vc') # goal type and normalize input does not need to be set, as no training is done here
     
     def initialize_network(self, input_size=0, output_size=0, num_hidden_layer=3, hidden_dim=512, batch_norm=True):
-       """initilize policy network
+        """initilize policy network
 
         Args:
             input_size (int, optional): input dimension of network (state + goal). Defaults to 0.
@@ -154,13 +154,14 @@ class LocoSafeDagger():
 
         Returns:
             network: returns initialized pytorch network
-        """
+        """              
+        
         from networks import GoalConditionedPolicyNet
         
         network = GoalConditionedPolicyNet(input_size, output_size, num_hidden_layer=num_hidden_layer, 
                                                 hidden_dim=hidden_dim, batch_norm=batch_norm).to(self.device)
         print("Policy Network initialized")
-        return network  
+        return network
     
     def train_network(self):
         pass

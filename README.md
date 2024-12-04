@@ -1,3 +1,8 @@
+# Learning and improving NMPC with Bayesian updates
+Author: Chi Zhang
+
+This repo is an extension on the previous work of safe learning of locomotion skills from MPC.
+
 # Safe Learning of Locomotion Skills from MPC
 Author: Xun Pua
 
