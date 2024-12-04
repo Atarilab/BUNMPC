@@ -175,6 +175,17 @@ class LocoSafeDagger():
     def warmup(self):
         pass
     
+    def _construct_desired_goal(self, v_des, w_des, gait):
+        """Construct a desired goal array."""
+        desired_goal = np.zeros((self.episode_length_eval, 5))
+        for t in range(self.episode_length_eval):
+            desired_goal[t, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+        desired_goal[:, 1] = v_des[0]
+        desired_goal[:, 2] = v_des[1]
+        desired_goal[:, 3] = w_des
+        desired_goal[:, 4] = utils.get_vc_gait_value(gait)
+        return desired_goal
+
     def run(self):
         """Run the modified locosafedagger algorithm
         """
@@ -182,18 +193,54 @@ class LocoSafeDagger():
             print(f"============ Iteration {i+1} ==============")
 
             # sample goals
+            gait = random.choice(self.gaits)
+            v_des,w_des = utils.get_des_velocities(
+                self.vx_des_max,self.vx_des_min,
+                self.vy_des_max,self.vy_des_min,
+                self.w_des_max,self.w_des_min,gait,dis="uniform"
+            )
             
+            #TODO: check out simulation.py
             # Rollout MPC
+            start_time = 0.0
+            print("rolling out MPC")
+            mpc_state, mpc_action, mpc_goal, _, mpc_base, _ = \
+                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)
+            
             
             # Rollout Policy
+            print("Rolling out policy...")
+            desired_goal = self._construct_desired_goal(v_des, w_des, gait)
+            policy_state,policy_action,policy_goal,_,policy_base,_,_ = \
+                self.simulation.rollout_policy(
+                    self.episode_length_eval,start_time,v_des,w_des,gait,
+                    self.vc_network,des_goal=desired_goal,
+                    norm_policy_input=self.database.get_database_mean_std()
+                )
             
             # Compute errors
+            e_mpc = utils.compute_vc_mse(v_des, w_des, mpc_state[:, :2], mpc_state[:, 5])[0]
+            e_policy = utils.compute_vc_mse(v_des, w_des, policy_state[:, :2], policy_state[:, 5])[0]
+            print(f"e_MPC={e_mpc}, e_policy={e_policy}")
             
             # Update dataset
+            if e_mpc < e_policy:
+                self.database.append(mpc_state, mpc_action, vc_goals=mpc_goal)
+                print("Added MPC samples to dataset.")
+            else:
+                self.database.append(policy_state, policy_action, vc_goals=policy_goal)
+                print("Added policy samples to dataset.")
             
             # Train Policy
+            print("Training policy...")
+            self.database.set_goal_type('vc')
+            self.vc_network = self.train_network(
+                self.vc_network, batch_size=self.batch_size,
+                learning_rate=self.learning_rate, n_epoch=self.n_epoch_data
+            )
             
             # Save policy
+            self.save_network(self.vc_network, name=f"policy_{i+1}")
         pass
 
 @hydra.main(config_path='cfgs', config_name='safedagger_modified_config')
