@@ -1,0 +1,11 @@
+LICENSE
+README.md
+package.xml
+setup.py
+goal_conditioned_behavioral_cloning.egg-info/PKG-INFO
+goal_conditioned_behavioral_cloning.egg-info/SOURCES.txt
+goal_conditioned_behavioral_cloning.egg-info/dependency_links.txt
+goal_conditioned_behavioral_cloning.egg-info/entry_points.txt
+goal_conditioned_behavioral_cloning.egg-info/requires.txt
+goal_conditioned_behavioral_cloning.egg-info/top_level.txt
+goal_conditioned_behavioral_cloning.egg-info/zip-safe

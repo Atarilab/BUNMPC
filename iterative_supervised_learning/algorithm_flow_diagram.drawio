@@ -1,0 +1,146 @@
+<mxfile host="app.diagrams.net" modified="2024-03-14T08:11:05.171Z" agent="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0" etag="Fzxk6vTe9HnJHdF5sqz_" version="24.0.6" type="github">
+  <diagram name="Page-1" id="wIPWux_nLxUTKNjEGYsW">
+    <mxGraphModel dx="2049" dy="1133" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="RO_vwhhObivWZEbS3IhU-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-1" target="RO_vwhhObivWZEbS3IhU-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-1" value="Random Gait Type" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="20" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-3" target="RO_vwhhObivWZEbS3IhU-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-3" target="RO_vwhhObivWZEbS3IhU-10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="414" y="230" />
+              <mxPoint x="220" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-3" target="RO_vwhhObivWZEbS3IhU-14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="414" y="230" />
+              <mxPoint x="650" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-20" value="vdes + wdes" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RO_vwhhObivWZEbS3IhU-19">
+          <mxGeometry x="-0.89" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-3" value="Random v_des + w_des (Uniform Dist.)" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="354" y="110" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-5" target="RO_vwhhObivWZEbS3IhU-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-5" value="Raibert Planner for Desired Contact Plan" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="354" y="260" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-8" target="RO_vwhhObivWZEbS3IhU-14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="414" y="460" />
+              <mxPoint x="620" y="460" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-8" value="Desired goal with contact plan and estimated CoM from vdes" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="351" y="350" width="126" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-28" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-14" target="RO_vwhhObivWZEbS3IhU-27">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-30" value="actual goal" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RO_vwhhObivWZEbS3IhU-28">
+          <mxGeometry x="0.096" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-14" value="Policy (Neural Network)" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="560" y="550" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-17" value="&lt;div&gt;MPC Rollout&lt;/div&gt;" style="swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="480" width="200" height="200" as="geometry">
+            <mxRectangle x="120" y="440" width="110" height="30" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-10" value="&lt;div&gt;Raibert Planner&lt;/div&gt;&lt;div&gt;(replanning for MPC stability)&lt;br&gt;&lt;/div&gt;" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="RO_vwhhObivWZEbS3IhU-17">
+          <mxGeometry x="40" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-12" value="MPC" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="RO_vwhhObivWZEbS3IhU-17">
+          <mxGeometry x="40" y="130" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="RO_vwhhObivWZEbS3IhU-17" source="RO_vwhhObivWZEbS3IhU-10" target="RO_vwhhObivWZEbS3IhU-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-34" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-25" target="RO_vwhhObivWZEbS3IhU-33">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="810" />
+              <mxPoint x="437" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-25" value="compute goal reaching error" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="730" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-26" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-12" target="RO_vwhhObivWZEbS3IhU-25">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-29" value="actual goal" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RO_vwhhObivWZEbS3IhU-26">
+          <mxGeometry x="-0.0034" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-27" target="RO_vwhhObivWZEbS3IhU-33">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="620" y="810" />
+              <mxPoint x="437" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-27" value="compute goal reaching error" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="560" y="730" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-37" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-33" target="RO_vwhhObivWZEbS3IhU-36">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-38" value="policy or mpc rollout data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RO_vwhhObivWZEbS3IhU-37">
+          <mxGeometry x="-0.2869" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-33" value="min(goal reaching e)" style="rhombus;whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="397" y="860" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-36" target="RO_vwhhObivWZEbS3IhU-39">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-36" value="save either policy or mpc to database (BC Memory)" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="377" y="990" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-42" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="RO_vwhhObivWZEbS3IhU-39" target="RO_vwhhObivWZEbS3IhU-41">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-43" value="dataset" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="RO_vwhhObivWZEbS3IhU-42">
+          <mxGeometry x="-0.0379" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-39" value="sample from databse" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="377" y="1109" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RO_vwhhObivWZEbS3IhU-41" value="train policy" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="377" y="1230" width="120" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

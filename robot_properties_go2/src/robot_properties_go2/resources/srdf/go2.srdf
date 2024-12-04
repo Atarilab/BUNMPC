@@ -1,0 +1,114 @@
+<?xml version="1.0" ?>
+<robot name="go2">
+
+    <!-- left front leg -->
+    <group name="lf_leg">
+        <joint name="FL_hip_joint" />
+        <joint name="FL_thigh_joint" />
+        <joint name="FL_calf_joint" />
+        <chain base="base" tip_link="FL_foot" />
+    </group>
+    <!-- right front leg -->
+    <group name="rf_leg">
+        <joint name="FR_hip_joint" />
+        <joint name="FR_thigh_joint" />
+        <joint name="FR_calf_joint" />
+        <chain base="base" tip_link="FR_foot" />
+    </group>
+    <!-- left hind leg -->
+    <group name="lr_leg">
+        <joint name="RL_hip_joint" />
+        <joint name="RL_thigh_joint" />
+        <joint name="RL_calf_joint" />
+        <chain base="base" tip_link="RL_foot" />
+    </group>
+    <!-- right hind leg -->
+    <group name="rr_leg">
+        <joint name="RR_hip_joint" />
+        <joint name="RR_thigh_joint" />
+        <joint name="RR_calf_joint" />
+        <chain base="base" tip_link="RR_foot" />
+    </group>
+    <group name="all_legs">
+        <group name="lf" />
+        <group name="rf" />
+        <group name="lr" />
+        <group name="rr" />
+    </group>
+    <group name="r_legs">
+        <group name="rf" />
+        <group name="rr" />
+    </group>
+    <group name="l_legs">
+        <group name="lf" />
+        <group name="lr" />
+    </group>
+    <group name="f_legs">
+        <group name="lf" />
+        <group name="rf" />
+    </group>
+    <group name="h_legs">
+        <group name="lr" />
+        <group name="rr" />
+    </group>
+    <group name="ld_legs">
+        <group name="lf" />
+        <group name="rr" />
+    </group>
+    <group name="rd_legs">
+        <group name="rf" />
+        <group name="lr" />
+    </group>
+
+    <end_effector name="lf_foot" parent_link="FL_foot" group="lf_leg" />
+    <end_effector name="rf_foot" parent_link="FR_foot" group="rf_leg" />
+    <end_effector name="lr_foot" parent_link="RL_foot" group="lr_leg" />
+    <end_effector name="rr_foot" parent_link="RR_foot" group="rr_leg" />
+
+    <group_state name="standing" group="all_legs">
+        <joint name="root_joint" value="0. 0. 0.235 0. 0. 0. 1." />
+        <joint name="FL_hip_joint" value="0.1" />
+        <joint name="FL_thigh_joint" value="0.8" />
+        <joint name="FL_calf_joint" value="-1.6" />
+        <joint name="RL_hip_joint" value="0.1" />
+        <joint name="RL_thigh_joint" value="-0.8" />
+        <joint name="RL_calf_joint" value="1.6" />
+        <joint name="FR_hip_joint" value="-0.1" />
+        <joint name="FR_thigh_joint" value="0.8" />
+        <joint name="FR_calf_joint" value="-1.6" />
+        <joint name="RR_hip_joint" value="-0.1" />
+        <joint name="RR_thigh_joint" value="-0.8" />
+        <joint name="RR_calf_joint" value="1.6" />
+    </group_state>
+
+    <group_state name="straight_standing" group="all_legs">
+        <joint name="root_joint" value="0. 0. 0.235 0. 0. 0. 1." />
+        <joint name="FL_hip_joint" value="0." />
+        <joint name="FL_thigh_joint" value="0.8" />
+        <joint name="FL_calf_joint" value="-1.6" />
+        <joint name="RL_hip_joint" value="0." />
+        <joint name="RL_thigh_joint" value="-0.8" />
+        <joint name="RL_calf_joint" value="1.6" />
+        <joint name="FR_hip_joint" value="0." />
+        <joint name="FR_thigh_joint" value="0.8" />
+        <joint name="FR_calf_joint" value="-1.6" />
+        <joint name="RR_hip_joint" value="0." />
+        <joint name="RR_thigh_joint" value="-0.8" />
+        <joint name="RR_calf_joint" value="1.6" />
+    </group_state>
+
+    <disable_collisions link1="FL_hip" link2="base" reason="Adjacent" />
+    <disable_collisions link1="FR_hip" link2="base" reason="Adjacent" />
+    <disable_collisions link1="RL_hip" link2="base" reason="Adjacent" />
+    <disable_collisions link1="RR_hip" link2="base" reason="Adjacent" />
+
+    <disable_collisions link1="FL_thigh" link2="FL_hip" reason="Adjacent" />
+    <disable_collisions link1="FR_thigh" link2="FR_hip" reason="Adjacent" />
+    <disable_collisions link1="RL_thigh" link2="RL_hip" reason="Adjacent" />
+    <disable_collisions link1="RR_thigh" link2="RR_hip" reason="Adjacent" />
+
+    <disable_collisions link1="FL_calf" link2="FL_thigh" reason="Adjacent" />
+    <disable_collisions link1="FR_calf" link2="FR_thigh" reason="Adjacent" />
+    <disable_collisions link1="RL_calf" link2="RL_thigh" reason="Adjacent" />
+    <disable_collisions link1="RR_calf" link2="RR_thigh" reason="Adjacent" />
+</robot>
