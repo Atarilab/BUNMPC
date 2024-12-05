@@ -65,6 +65,7 @@ class BehavioralCloning():
         
         # Policy Network Properties
         self.goal_type = cfg.goal_type
+        # self.goal_type = 'cc'
         if self.goal_type not in ['cc', 'vc']:
             raise ValueError('goal type should be cc or vc only!')
         
@@ -150,10 +151,11 @@ class BehavioralCloning():
         Run behavioral cloning
         '''
         
-        self.load_network(filename='/home/atari_ws/data/behavior_cloning/trot/bc_single_gait_multi_goal/network/cc_policy.pth', goal_type='cc')
-        self.load_network(filename='/home/atari_ws/data/behavior_cloning/trot/bc_single_gait_multi_goal/network/vc_policy.pth', goal_type='vc')
+        # self.load_network(filename='/home/atari_ws/data/behavior_cloning/trot/bc_single_gait_multi_goal/network/cc_policy.pth', goal_type='cc')
+        # self.load_network(filename='/home/atari_ws/data/behavior_cloning/trot/bc_single_gait_multi_goal/network/vc_policy.pth', goal_type='vc')
         
-        
+        self.load_network(filename='/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/network/cc_150.pth', goal_type='cc')
+        self.load_network(filename='/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/network/vc_150.pth', goal_type='vc')
         # NOTE: setup pybullet environment
         # condition on which iterations to show GUI for Pybullet    
         display_simu = False
@@ -187,7 +189,7 @@ class BehavioralCloning():
             print("=== Benchmark MPC Rollout ===")
             
             # rollout mpc
-            benchmark_state, benchmark_action, benchmark_vc_goal, benchmark_cc_goal, benchmark_base = \
+            benchmark_state, benchmark_action, benchmark_vc_goal, benchmark_cc_goal, benchmark_base,_ = \
                 self.simulation.rollout_mpc(self.episode_length, start_time, v_des, w_des, gait, nominal=True)
             
             # collect position and velocity of nominal trajectory

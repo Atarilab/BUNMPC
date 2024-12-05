@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from simulation import Simulation
 from contact_planner import ContactPlanner
 from utils import get_plan, get_des_velocities, get_estimated_com, \
-                    construct_goal, compute_goal_reaching_error, rotate_jacobian
+                    construct_cc_goal, rotate_jacobian
 import pinocchio as pin
 from database import Database
 
@@ -139,7 +139,8 @@ class TestTrainedPolicy():
     
             
         # condition on which iterations to show GUI for Pybullet    
-        display_simu = False
+        # display_simu = False
+        display_simu = True
         
         # init env for if no pybullet server is active
         if self.simulation.currently_displaying_gui is None:
@@ -191,7 +192,7 @@ class TestTrainedPolicy():
         estimated_com = get_estimated_com(pin_robot, new_q0, new_v0, v_des, self.episode_length + 1, self.sim_dt, get_plan(gait))
         
         # Construct desired goal
-        desired_goal = construct_goal(self.episode_length + 1, n_eef, desired_contact_schedule, estimated_com, 
+        desired_goal = construct_cc_goal(self.episode_length + 1, n_eef, desired_contact_schedule, estimated_com, 
                                         goal_horizon=self.goal_horizon, sim_dt=self.sim_dt)
             
     
@@ -231,7 +232,7 @@ class TestTrainedPolicy():
         mpc_goal_reaching_error = np.nan
         if len(mpc_goal) != 0:
             print('-> Compute MPC goal reaching error')
-            mpc_goal_reaching_error = compute_goal_reaching_error(desired_goal, mpc_goal, self.goal_horizon, self.sim_dt, n_eef)
+            # mpc_goal_reaching_error = compute_goal_reaching_error(desired_goal, mpc_goal, self.goal_horizon, self.sim_dt, n_eef)
             
             # Plot mpc goal and action
             for y in range(4):

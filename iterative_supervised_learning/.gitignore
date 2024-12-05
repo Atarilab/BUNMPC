@@ -31,3 +31,5 @@ examples/plan_generation/test_nb.ipynb
 
 examples/plan_generation/script_copy_datasets.sh
 examples/plan_generation/script_copy_weights.sh
+examples/iterative_algorithm/data
+examples/iterative_algorithm/wandb

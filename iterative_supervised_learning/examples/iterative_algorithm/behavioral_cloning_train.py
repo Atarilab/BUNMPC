@@ -210,7 +210,8 @@ class BehavioralCloning():
         
         # NOTE: Load database
         self.database = Database(limit=self.cfg.database_size, norm_input=self.normalize_policy_input)
-        filename = '/home/atari_ws/data/behavior_cloning/trot/bc_single_gait_multi_goal_with_stop/dataset/database_0.hdf5'
+        # filename = '/home/atari_ws/data/behavior_cloning/trot/bc_single_gait_multi_goal_with_stop/dataset/database_0.hdf5'
+        filename = '/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/dataset/database_677971.hdf5'
         self.database.load_saved_database(filename=filename)
         
         # Network saving
