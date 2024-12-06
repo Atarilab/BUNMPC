@@ -325,7 +325,6 @@ class LocoSafeDagger():
                 self.w_des_max,self.w_des_min,gait,dis="uniform"
             )
             
-            #TODO: check out simulation.py
             # Rollout MPC
             start_time = 0.0
             print("rolling out MPC")

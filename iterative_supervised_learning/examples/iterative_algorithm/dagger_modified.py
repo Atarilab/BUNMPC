@@ -640,7 +640,7 @@ class Dagger():
                             # Transpose the array to (time, channel, height, width) then log video
                             if len(frames) != 0:
                                 video_array_transposed = np.array(frames).transpose(0, 3, 1, 2)
-                                wandb.log({'video': wandb.Video(video_array_transposed, fps=self.simulation.video_fr)}) 
+                                # wandb.log({'video': wandb.Video(video_array_transposed, fps=self.simulation.video_fr)}) 
                             
                             if len(policy_cc_goal) < (self.episode_length_eval * 2 / 3):
                                 print('Policy Datapoints too little! Policy will be considered as failed')
@@ -839,7 +839,7 @@ class Dagger():
                         # Transpose the array to (time, channel, height, width) then log video
                         if len(frames) != 0:
                             video_array_transposed = np.array(frames).transpose(0, 3, 1, 2)
-                            wandb.log({'video': wandb.Video(video_array_transposed, fps=self.simulation.video_fr)}) 
+                            # wandb.log({'video': wandb.Video(video_array_transposed, fps=self.simulation.video_fr)}) 
                         
                         # record if policy rollout was successful
                         if len(policy_state) != 0:
@@ -903,7 +903,8 @@ class Dagger():
 def main(cfg):
     icc = Dagger(cfg)
     # icc.warmup()
-    icc.database.load_saved_database(filename='/home/atari_ws/data/dagger_safedagger_warmup/dataset/database_112188.hdf5')
+    # icc.database.load_saved_database(filename='/home/atari_ws/data/dagger_safedagger_warmup/dataset/database_112188.hdf5')
+    icc.database.load_saved_database(filename='/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/dataset/database_1047158.hdf5')
     icc.run() 
 
 if __name__ == '__main__':
