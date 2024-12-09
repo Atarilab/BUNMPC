@@ -80,8 +80,8 @@ num_rollouts_eval: 10
 num_pertubations_per_replanning_eval: 1
 episode_length_eval: 5000
 
-# main safedagger loop
-num_iterations_safedagger: 3 # as a start
+# main locosafedagger loop
+num_iterations_locosafedagger: 3 # as a start
 
 num_rollouts_per_iteration_data: 20
 num_replannings_on_nom_traj_data: 1

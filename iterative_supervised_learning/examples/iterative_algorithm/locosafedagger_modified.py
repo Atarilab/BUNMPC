@@ -77,7 +77,7 @@ class LocoSafeDagger():
         self.episode_length_eval = cfg.episode_length_eval
         
         # Data Collection
-        self.num_iterations_safedagger = cfg.num_iterations_safedagger
+        self.num_iterations_locosafedagger = cfg.num_iterations_locosafedagger
         self.num_rollouts_per_iteration_data = cfg.num_rollouts_per_iteration_data
         self.num_replannings_on_nom_traj_data = cfg.num_replannings_on_nom_traj_data
         self.num_pertubations_per_replanning_data = cfg.num_pertubations_per_replanning_data
@@ -322,7 +322,8 @@ class LocoSafeDagger():
             v_des,w_des = utils.get_des_velocities(
                 self.vx_des_max,self.vx_des_min,
                 self.vy_des_max,self.vy_des_min,
-                self.w_des_max,self.w_des_min,gait,dis="uniform"
+                self.w_des_max,self.w_des_min,
+                gait,dist="uniform"
             )
             
             # Rollout MPC
@@ -367,11 +368,12 @@ class LocoSafeDagger():
             self.save_network(self.vc_network, name=f"policy_{i+1}")
         pass
 
-@hydra.main(config_path='cfgs', config_name='safedagger_modified_config')
+@hydra.main(config_path='cfgs', config_name='locosafedagger_modified_config')
 def main(cfg):
     icc = LocoSafeDagger(cfg)
     # icc.warmup()
-    icc.database.load_saved_database(filename='/home/atari_ws/data/dagger_safedagger_warmup/dataset/database_112188.hdf5')
+    # icc.database.load_saved_database(filename='/home/atari_ws/data/dagger_safedagger_warmup/dataset/database_112188.hdf5')
+    icc.database.load_saved_database(filename='/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/dataset/database_1047158.hdf5')
     icc.run() 
 
 if __name__ == '__main__':
