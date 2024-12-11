@@ -41,15 +41,16 @@ mu_vel, sigma_vel = 0, 0.2 # joint velocity
 sim = Simulation(cfg=cfg)
 
 # show GUI?
-show_visualization = False
+# show_visualization = False
+show_visualization = True
 
 # initialize Pybullet environment
 sim.init_pybullet_env(display_simu=show_visualization)
 
 
 # Run mpc simulation, which returns data
-state, measurement, action, goal, base = sim.rollout_mpc(episode_length, start_time, v_des, w_des, cfg.gait, nominal=True)
-
+# state, measurement, action, goal, base = sim.rollout_mpc(episode_length, start_time, v_des, w_des, cfg.gait, nominal=True)
+state, action, vcgoal, ccgoal, base, frames = sim.rollout_mpc(episode_length, start_time, v_des, w_des, cfg.gait, nominal=True, save_video=True)
 nominal_pos, nominal_vel = sim.q_nominal, sim.v_nominal
 
 num_replanning = int(sim.gait_params.gait_period/sim.plan_freq)

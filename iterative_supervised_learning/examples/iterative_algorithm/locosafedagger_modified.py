@@ -50,6 +50,8 @@ safety_bounds_dict = {
 
 class LocoSafeDagger():
     def __init__(self,cfg):
+        self.errors = []
+        self.goals = []
         # configuration file (containing the hyper/parameters)
         self.cfg = cfg
             
@@ -300,38 +302,113 @@ class LocoSafeDagger():
     def warmup(self):
         pass
     
-    def _construct_desired_goal(self, v_des, w_des, gait):
-        """Construct a desired goal array."""
-        desired_goal = np.zeros((self.episode_length_eval, 5))
-        for t in range(self.episode_length_eval):
-            desired_goal[t, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
-        desired_goal[:, 1] = v_des[0]
-        desired_goal[:, 2] = v_des[1]
-        desired_goal[:, 3] = w_des
-        desired_goal[:, 4] = utils.get_vc_gait_value(gait)
-        return desired_goal
+    def compute_likelihood(vx_vals, vy_vals, w_vals, observed_goal, error, sigma=0.1):
+        """
+            Compute the likelihood P(e | vx, vy, w) for each grid point.
 
-    def run(self):
+            Args:
+                vx_vals (array): Discretized vx values.
+                vy_vals (array): Discretized vy values.
+                w_vals (array): Discretized w values.
+                observed_goal (tuple): Observed goal (vx, vy, w).
+                error (float): Observed error associated with the goal.
+                sigma (float): Standard deviation for the Gaussian.
+
+            Returns:
+                ndarray: Likelihood values for the entire grid.
+        """
+        vx_obs, vy_obs, w_obs = observed_goal
+        likelihood = np.zeros((len(vx_vals), len(vy_vals), len(w_vals)))
+
+        for i, vx in enumerate(vx_vals):
+            for j, vy in enumerate(vy_vals):
+                for k, w in enumerate(w_vals):
+                    # Gaussian likelihood centered at the observed goal
+                    goal_diff = np.array([vx - vx_obs, vy - vy_obs, w - w_obs])
+                    likelihood[i, j, k] = np.exp(-np.sum(goal_diff**2) / (2 * sigma**2))
+
+        # Normalize likelihood (optional for stability)
+        likelihood /= np.sum(likelihood)
+        return likelihood
+    
+    def update_goal_distribution(P_vxvyw, likelihood):
+        """
+            Update the goal distribution using the likelihood.
+
+            Args:
+                P_vxvyw (ndarray): Current prior distribution P(vx, vy, w).
+                likelihood (ndarray): Likelihood P(e | vx, vy, w).
+
+            Returns:
+                ndarray: Updated posterior distribution P(vx, vy, w | e).
+        """
+        # Compute the unnormalized posterior
+        posterior = P_vxvyw * likelihood
+
+        # Normalize the posterior to sum to 1
+        posterior /= np.sum(posterior)
+        return posterior
+
+    
+    def sample_error_conditioned_goal(self):
+        """
+            sample a goal based on the error-conditioned distribution
+        Args:
+            error (_type_): policy error or MPC error(between desired goal and actually realized goal)
+
+        Returns:
+            _type_: _description_
+        """
+        
+        if not self.errors:
+            # Fallback to uniform sampling if no errors are recorded yet
+            v_des = np.array([
+                np.random.uniform(self.vx_des_min, self.vx_des_max),
+                np.random.uniform(self.vy_des_min, self.vy_des_max),
+                0.0
+            ])
+            w_des = np.random.uniform(self.w_des_min, self.w_des_max)
+        
+        # Normalize errors to compute probabilities
+        probabilities = compute_sampling_probabilities(self.errors)
+        
+        # Sample an index based on probabilities
+        sampled_index = np.random.choice(len(self.goals), p=probabilities)
+        
+        # TODO:sample goals based on error rather randomly
+        
+        # Retrieve the corresponding goal
+        v_des, w_des = self.goals[sampled_index]
+        
+        return v_des, w_des
+
+
+    def run_unperturbed(self):
+        # TODO:Run through a pipeline that: sample goals -> rollout MPC -> rollout Policy ->
+        # collect the realized contact plan for MPC and policy -> compute error -> data aggregation
+        # -> update policy -> update goal distribution depending on the error 
         """Run the modified locosafedagger algorithm
         """
         for i in range(self.num_iterations_locosafedagger):
             print(f"============ Iteration {i+1} ==============")
 
-            # sample goals
-            gait = random.choice(self.gaits)
-            v_des,w_des = utils.get_des_velocities(
-                self.vx_des_max,self.vx_des_min,
-                self.vy_des_max,self.vy_des_min,
-                self.w_des_max,self.w_des_min,
-                gait,dist="uniform"
-            )
+            # sample goals(error-conditioned)
+            vx_bins = 10
+            vy_bins = 10
+            w_bins = 10
+            # discretize goal space
+            vx_vals = np.linspace(self.vx_des_min,self.vx_des_max)
+            vy_vals = np.linspace(self.vy_des_min,self.vy_des_max)
+            w_vals = np.linspace(self.w_des_min,self.w_des_max)
+            
+            # initialize goal distribution
+            P_vxvyw = np.ones((vx_bins, vy_bins, w_bins)) / (vx_bins * vy_bins * w_bins)
             
             # Rollout MPC
             start_time = 0.0
             print("rolling out MPC")
             mpc_state, mpc_action, mpc_goal, _, mpc_base, _ = \
-                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)
-            
+                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)               
             
             # Rollout Policy
             print("Rolling out policy...")
@@ -342,30 +419,15 @@ class LocoSafeDagger():
                     self.vc_network,des_goal=desired_goal,
                     norm_policy_input=self.database.get_database_mean_std()
                 )
-            
             # Compute errors
-            e_mpc = utils.compute_vc_mse(v_des, w_des, mpc_state[:, :2], mpc_state[:, 5])[0]
-            e_policy = utils.compute_vc_mse(v_des, w_des, policy_state[:, :2], policy_state[:, 5])[0]
-            print(f"e_MPC={e_mpc}, e_policy={e_policy}")
             
+            self.errors.append(e_policy)
+            self.goals.append([v_des,w_des])
             # Update dataset
-            if e_mpc < e_policy:
-                self.database.append(mpc_state, mpc_action, vc_goals=mpc_goal)
-                print("Added MPC samples to dataset.")
-            else:
-                self.database.append(policy_state, policy_action, vc_goals=policy_goal)
-                print("Added policy samples to dataset.")
             
-            # Train Policy
-            print("Training policy...")
-            self.database.set_goal_type('vc')
-            self.vc_network = self.train_network(
-                self.vc_network, batch_size=self.batch_size,
-                learning_rate=self.learning_rate, n_epoch=self.n_epoch_data
-            )
+            # Update policy
             
-            # Save policy
-            self.save_network(self.vc_network, name=f"policy_{i+1}")
+            # Update goal distribution with observed errors
         pass
 
 @hydra.main(config_path='cfgs', config_name='locosafedagger_modified_config')
