@@ -302,20 +302,20 @@ class LocoSafeDagger():
     def warmup(self):
         pass
     
-    def compute_likelihood(vx_vals, vy_vals, w_vals, observed_goal, error, sigma=0.1):
+    def compute_likelihood(self,vx_vals, vy_vals, w_vals, observed_goal, error, sigma=0.1):
         """
-            Compute the likelihood P(e | vx, vy, w) for each grid point.
+        Compute the likelihood P(e | vx, vy, w) for each grid point.
 
-            Args:
-                vx_vals (array): Discretized vx values.
-                vy_vals (array): Discretized vy values.
-                w_vals (array): Discretized w values.
-                observed_goal (tuple): Observed goal (vx, vy, w).
-                error (float): Observed error associated with the goal.
-                sigma (float): Standard deviation for the Gaussian.
+        Args:
+            vx_vals (array): Discretized vx values.
+            vy_vals (array): Discretized vy values.
+            w_vals (array): Discretized w values.
+            observed_goal (tuple): Observed goal (vx, vy, w).
+            error (float): Observed error associated with the goal.
+            sigma (float): Standard deviation for the Gaussian.
 
-            Returns:
-                ndarray: Likelihood values for the entire grid.
+        Returns:
+            ndarray: Likelihood values for the entire grid.
         """
         vx_obs, vy_obs, w_obs = observed_goal
         likelihood = np.zeros((len(vx_vals), len(vy_vals), len(w_vals)))
@@ -331,16 +331,16 @@ class LocoSafeDagger():
         likelihood /= np.sum(likelihood)
         return likelihood
     
-    def update_goal_distribution(P_vxvyw, likelihood):
+    def update_goal_distribution(self,P_vxvyw, likelihood):
         """
-            Update the goal distribution using the likelihood.
+        Update the goal distribution using the likelihood.
 
-            Args:
-                P_vxvyw (ndarray): Current prior distribution P(vx, vy, w).
-                likelihood (ndarray): Likelihood P(e | vx, vy, w).
+        Args:
+            P_vxvyw (ndarray): Current prior distribution P(vx, vy, w).
+            likelihood (ndarray): Likelihood P(e | vx, vy, w).
 
-            Returns:
-                ndarray: Updated posterior distribution P(vx, vy, w | e).
+        Returns:
+            ndarray: Updated posterior distribution P(vx, vy, w | e).
         """
         # Compute the unnormalized posterior
         posterior = P_vxvyw * likelihood
@@ -348,40 +348,30 @@ class LocoSafeDagger():
         # Normalize the posterior to sum to 1
         posterior /= np.sum(posterior)
         return posterior
-
     
-    def sample_error_conditioned_goal(self):
+    def random_sample_from_distribution(self,P_vxvyw, vx_vals, vy_vals, w_vals):
         """
-            sample a goal based on the error-conditioned distribution
+        Sample a goal (vx, vy, w) from the updated distribution.
+
         Args:
-            error (_type_): policy error or MPC error(between desired goal and actually realized goal)
+            P_vxvyw (ndarray): Updated posterior distribution.
+            vx_vals (array): Discretized vx values.
+            vy_vals (array): Discretized vy values.
+            w_vals (array): Discretized w values.
 
         Returns:
-            _type_: _description_
+            tuple: Sampled goal (vx, vy, w).
         """
-        
-        if not self.errors:
-            # Fallback to uniform sampling if no errors are recorded yet
-            v_des = np.array([
-                np.random.uniform(self.vx_des_min, self.vx_des_max),
-                np.random.uniform(self.vy_des_min, self.vy_des_max),
-                0.0
-            ])
-            w_des = np.random.uniform(self.w_des_min, self.w_des_max)
-        
-        # Normalize errors to compute probabilities
-        probabilities = compute_sampling_probabilities(self.errors)
-        
-        # Sample an index based on probabilities
-        sampled_index = np.random.choice(len(self.goals), p=probabilities)
-        
-        # TODO:sample goals based on error rather randomly
-        
-        # Retrieve the corresponding goal
-        v_des, w_des = self.goals[sampled_index]
-        
-        return v_des, w_des
+        # Flatten the distribution and sample an index
+        flat_distribution = P_vxvyw.flatten()
+        sampled_index = np.random.choice(len(flat_distribution), p=flat_distribution)
 
+        # Convert the index back to grid coordinates
+        i, j, k = np.unravel_index(sampled_index, P_vxvyw.shape)
+        return vx_vals[i], vy_vals[j], w_vals[k]
+
+    def error_based_sample_from_distribution(self):
+        pass
 
     def run_unperturbed(self):
         # TODO:Run through a pipeline that: sample goals -> rollout MPC -> rollout Policy ->
@@ -389,46 +379,110 @@ class LocoSafeDagger():
         # -> update policy -> update goal distribution depending on the error 
         """Run the modified locosafedagger algorithm
         """
+        # Define the range and resolution of the goal space
+        vx_min,vx_max,vx_bins = self.vx_des_min, self.vx_des_max, 100
+        vy_min,vy_max,vy_bins = self.vy_des_min, self.vy_des_max, 100
+        w_min,w_max,w_bins= self.w_des_min,self.w_des_max,100
+        
+        # Create a 3D grid for (vx, vy, w)
+        vx_vals = np.linspace(vx_min, vx_max, vx_bins)
+        vy_vals = np.linspace(vy_min, vy_max, vy_bins)
+        w_vals = np.linspace(w_min, w_max, w_bins)
+        
+        # initialize the uniform distribution over the grid
+        P_vxvyw = np.ones((vx_bins, vy_bins, w_bins)) / (vx_bins * vy_bins * w_bins)
+            
         for i in range(self.num_iterations_locosafedagger):
             print(f"============ Iteration {i+1} ==============")
-
-            # sample goals(error-conditioned)
-            vx_bins = 10
-            vy_bins = 10
-            w_bins = 10
-            # discretize goal space
-            vx_vals = np.linspace(self.vx_des_min,self.vx_des_max)
-            vy_vals = np.linspace(self.vy_des_min,self.vy_des_max)
-            w_vals = np.linspace(self.w_des_min,self.w_des_max)
             
-            # initialize goal distribution
-            P_vxvyw = np.ones((vx_bins, vy_bins, w_bins)) / (vx_bins * vy_bins * w_bins)
+            ## Train policy
+            wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
+            print('=== Training VC Policy ===')
+            self.database.set_goal_type('vc')
+            if i == 0:  # warmup (different epoch!)
+                self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
+            else:  # normal training
+                self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
+                
+            self.save_network(self.vc_network, name='policy_'+str(i+1))
+            wandb.finish()
+            print('Policy {} training complete',i)
             
-            # Rollout MPC
+            ## sample goals from the updated distribution
+            new_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
+            print(f"Sampled new goal: {new_goal}")
+            
+            # gait = 'trot'
+            gait = random.choice(self.gaits)
+            print("gait chose is ",gait)
+            
+            v_des = np.array([new_goal[0], new_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
+            w_des = np.array(new_goal[2])
+            
+            # v_des, w_des = utils.get_des_velocities(self.vx_des_max, self.vx_des_min, self.vy_des_max, self.vy_des_min, 
+            #                                             self.w_des_max, self.w_des_min, gait, dist='uniform')
+            
+            ## Rollout MPC
             start_time = 0.0
-            print("rolling out MPC")
-            mpc_state, mpc_action, mpc_goal, _, mpc_base, _ = \
-                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)               
+
+            # condition on which iterations to show GUI for Pybullet    
+            display_simu = False
             
-            # Rollout Policy
+            # init env for if no pybullet server is active
+            if self.simulation.currently_displaying_gui is None:
+                self.simulation.init_pybullet_env(display_simu=display_simu)
+            # change pybullet environment between with/without display, depending on condition
+            elif display_simu != self.simulation.currently_displaying_gui:
+                self.simulation.kill_pybullet_env()
+                self.simulation.init_pybullet_env(display_simu=display_simu)
+                
+            print("rolling out MPC")
+            mpc_state, mpc_action, mpc_vc_goal, mpc_cc_goal, mpc_base, _ = \
+                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)               
+            # TODO: What's difference between vc_goal and cc_goal? 
+            # TODO: find desired goal and realized goal
+            
+            ## Rollout Policy
+            wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i, 'gait':gait}, job_type='rollout_policy', 
+                                    name='rollout_policy_'+str(i)+'_'+gait)
+            wandb.log({'vx_des': v_des[0]}) 
+            
+            # VC desired goal
+            start_i = int(start_time/self.sim_dt)
+            desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
+            for t in range(start_i, self.episode_length_eval):
+                desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+            
+            desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
+            desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
+            desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
+            desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
+            
             print("Rolling out policy...")
-            desired_goal = self._construct_desired_goal(v_des, w_des, gait)
-            policy_state,policy_action,policy_goal,_,policy_base,_,_ = \
+            print("=== Policy Rollout without pertubation - ", str(i), '_', " ===")
+            
+            self.database.set_goal_type('vc')
+            policy_state,policy_action,policy_vc_goal,policy_cc_goal,policy_base,_,_ = \
                 self.simulation.rollout_policy(
-                    self.episode_length_eval,start_time,v_des,w_des,gait,
-                    self.vc_network,des_goal=desired_goal,
+                    self.episode_length_eval,start_time, v_des, w_des, gait,
+                    self.vc_network, des_goal = desired_goal,
                     norm_policy_input=self.database.get_database_mean_std()
                 )
-            # Compute errors
             
-            self.errors.append(e_policy)
-            self.goals.append([v_des,w_des])
-            # Update dataset
+            ## Compute errors
+            # self.errors.append(e_policy)
+            # self.goals.append([v_des,w_des])
+            ## Update dataset
             
-            # Update policy
+            ## Update policy
             
-            # Update goal distribution with observed errors
-        pass
+            ## Update goal distribution with observed errors
+            # Compute the likelihood for the current observation
+            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, goal, error, sigma=0.1)
+            
+            # Update the goal distribution
+            P_vxvyw = self.update_goal_distribution(P_vxvyw, likelihood)
+
 
 @hydra.main(config_path='cfgs', config_name='locosafedagger_modified_config')
 def main(cfg):
@@ -436,7 +490,8 @@ def main(cfg):
     # icc.warmup()
     # icc.database.load_saved_database(filename='/home/atari_ws/data/dagger_safedagger_warmup/dataset/database_112188.hdf5')
     icc.database.load_saved_database(filename='/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/dataset/database_1047158.hdf5')
-    icc.run() 
+    # icc.run()
+    icc.run_unperturbed()  
 
 if __name__ == '__main__':
     main()   
