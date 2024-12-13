@@ -1,4 +1,5 @@
 # test error-conditioned goal distribution
+# TODO: Test rollout_policy, error: too many values to unpack
 
 import numpy as np
 import matplotlib

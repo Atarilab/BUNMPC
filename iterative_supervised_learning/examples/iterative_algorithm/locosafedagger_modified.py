@@ -300,6 +300,8 @@ class LocoSafeDagger():
         print("saved dataset at iteration " + str(iter))
     
     def warmup(self):
+        """Rollout MPC once and do behavior cloning on the dataset to train a working policy first
+        """
         pass
     
     def compute_likelihood(self,vx_vals, vy_vals, w_vals, observed_goal, error, sigma=0.1):
