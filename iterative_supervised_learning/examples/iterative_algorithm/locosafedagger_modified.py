@@ -11,9 +11,9 @@ import pinocchio as pin
 from database import Database
 
 import numpy as np
-# import matplotlib.pyplot as plt
-# import matplotlib
-# matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')
 import random
 import hydra
 import os
@@ -25,6 +25,8 @@ import json
 import sys
 import time
 import wandb
+from test_trained_policy import TestTrainedPolicy as TTP
+from contact_planner import ContactPlanner
 
 # set random seed for reproducability
 # seed = 42
@@ -375,6 +377,29 @@ class LocoSafeDagger():
     def error_based_sample_from_distribution(self):
         pass
 
+    def create_desired_contact_schedule(self, pin_robot, urdf_path, q0, v0, v_des, w_des, gait, start_time):
+        """
+            create contact schedule for a desired robot velocity and gait.
+
+            Args:
+                pin_robot (robot): pinocchio robot model
+                urdf_path (path): robot urdf path
+                q0 (np.array): robot initial configuration
+                v0 (np.array): robot initial velocity
+                v_des (np.array): desired translational velocity of robot com
+                w_des (float): desired yaw velocity of robot
+                gait (str, optional): gait to simulate. Defaults to None.
+
+            Returns:
+                contact_schedule (np.array): [n_eff x number of contact events x (time, x, y, z)]
+                cnt_plan (np.array): [planning horizon x n_eff x (in contact?, x, y, z)]
+        """        
+
+        plan = utils.get_plan(gait)
+        cp = ContactPlanner(plan)
+        contact_schedule, cnt_plan = cp.get_contact_schedule(pin_robot, urdf_path, q0, v0, v_des, w_des, self.episode_length_data, start_time)
+        return contact_schedule, cnt_plan
+    
     def run_unperturbed(self):
         # TODO:Run through a pipeline that: sample goals -> rollout MPC -> rollout Policy ->
         # collect the realized contact plan for MPC and policy -> compute error -> data aggregation
@@ -414,8 +439,8 @@ class LocoSafeDagger():
             new_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
             print(f"Sampled new goal: {new_goal}")
             
-            # gait = 'trot'
-            gait = random.choice(self.gaits)
+            gait = 'trot'
+            # gait = random.choice(self.gaits)
             print("gait chose is ",gait)
             
             v_des = np.array([new_goal[0], new_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
@@ -428,7 +453,8 @@ class LocoSafeDagger():
             start_time = 0.0
 
             # condition on which iterations to show GUI for Pybullet    
-            display_simu = False
+            # display_simu = False
+            display_simu = True
             
             # init env for if no pybullet server is active
             if self.simulation.currently_displaying_gui is None:
@@ -438,47 +464,63 @@ class LocoSafeDagger():
                 self.simulation.kill_pybullet_env()
                 self.simulation.init_pybullet_env(display_simu=display_simu)
                 
-            print("rolling out MPC")
+            print("=== MPC Rollout ===")
             mpc_state, mpc_action, mpc_vc_goal, mpc_cc_goal, mpc_base, _ = \
                         self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)               
             # TODO: What's difference between vc_goal and cc_goal? 
             # TODO: find desired goal and realized goal
             
+            # collect position and velocity of nominal trajectory
+            nominal_pos, nominal_vel = self.simulation.q_nominal, self.simulation.v_nominal
+            
+            # get contact plan of benchmark mpc
+            contact_plan = self.simulation.gg.cnt_plan
+
+            #====================================================================================================================================================     
             ## Rollout Policy
-            wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i, 'gait':gait}, job_type='rollout_policy', 
-                                    name='rollout_policy_'+str(i)+'_'+gait)
-            wandb.log({'vx_des': v_des[0]}) 
+            # why is wandb involved?
+            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i, 'gait':gait}, job_type='rollout_policy', 
+            #                         name='rollout_policy_'+str(i)+'_'+gait)
+            # wandb.log({'vx_des': v_des[0]}) 
             
             # VC desired goal
             start_i = int(start_time/self.sim_dt)
             desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
             for t in range(start_i, self.episode_length_eval):
                 desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
-            
+
             desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
             desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
             desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
             desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
-            
-            print("Rolling out policy...")
-            print("=== Policy Rollout without pertubation - ", str(i), '_', " ===")
-            
+           
+            print("=== Policy Rollout ===")
+            # self.vc_network = TTP.load_network(self)
             self.database.set_goal_type('vc')
-            policy_state,policy_action,policy_vc_goal,policy_cc_goal,policy_base,_,_ = \
-                self.simulation.rollout_policy(
-                    self.episode_length_eval,start_time, v_des, w_des, gait,
-                    self.vc_network, des_goal = desired_goal,
-                    norm_policy_input=self.database.get_database_mean_std()
-                )
+            policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
+            self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
+                                            self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
+                                            norm_policy_input=self.database.get_database_mean_std(), save_video=True)
             
-            ## Compute errors
-            # self.errors.append(e_policy)
-            # self.goals.append([v_des,w_des])
-            ## Update dataset
+            ## calculate goal-reaching error
+            # policy error
+            policy_vx_error,policy_vy_error,policy_w_error = utils.compute_vc_mse(v_des, w_des, policy_state[:, 0:2], policy_state[:, 5])
             
-            ## Update policy
+            # mpc error
+            mpc_vx_error,mpc_vy_error,policy_w_error = utils.compute_vc_mse(v_des,w_des,mpc_state[:,0:2],mpc_state[:,5])
+            if e_mpc > e_policy:
+                self.errors.append(e_policy)
+            else:
+                self.errors.append(e_mpc)
+                        
+            self.goals.append([v_des,w_des])
             
-            ## Update goal distribution with observed errors
+            
+            ## TODO:Update dataset
+            
+            ## TODO:Update policy
+            
+            ## TODO:Update goal distribution with observed errors
             # Compute the likelihood for the current observation
             likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, goal, error, sigma=0.1)
             
