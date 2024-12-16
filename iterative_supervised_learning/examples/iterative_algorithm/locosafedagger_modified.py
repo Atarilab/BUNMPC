@@ -27,6 +27,17 @@ import time
 import wandb
 from test_trained_policy import TestTrainedPolicy as TTP
 from contact_planner import ContactPlanner
+from tkinter import Tk     # from tkinter import Tk for Python 3.x
+from tkinter.filedialog import askopenfilename
+
+from networks import GoalConditionedPolicyNet
+import torch.serialization
+from networks import GoalConditionedPolicyNet
+
+# Allowlist the custom class
+torch.serialization.add_safe_globals([GoalConditionedPolicyNet])
+
+
 
 # set random seed for reproducability
 # seed = 42
@@ -267,6 +278,26 @@ class LocoSafeDagger():
         
         torch.save(payload, savepath)
         print('Network Snapshot saved')
+        
+    def load_network(self, filename=None):
+        """
+        load policy network and determine input and output sizes
+        """    
+        if filename is None: 
+            Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+            filename = askopenfilename(initialdir=self.cfg.data_save_path) # show an "Open" dialog box and return the path to the selected file
+        if len(filename) == 0:
+            raise FileNotFoundError()
+        file = torch.load(filename, map_location=self.device)
+        self.vc_network = file['network'].to(self.device)
+        self.vc_network.eval()
+        self.policy_input_parameters = file['norm_policy_input']
+
+        print("Policy Network loaded from: " + filename)
+        if self.policy_input_parameters is None:
+            print('Policy Input will NOT be normalized')
+        else:
+            print('Policy Input will be normalized')
     
     def save_dataset(self, iter):
         """save current database
@@ -495,7 +526,16 @@ class LocoSafeDagger():
             desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
            
             print("=== Policy Rollout ===")
-            # self.vc_network = TTP.load_network(self)
+            # for testing
+            # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
+            # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            # self.vc_network = self.initialize_network(input_size=self.vc_input_size, output_size=self.output_size, 
+            #                                         num_hidden_layer=self.cfg.num_hidden_layer, hidden_dim=self.cfg.hidden_dim,
+            #                                         batch_norm=True)
+            # state_dict = torch.load(model_path, map_location=device,weights_only=True)
+            # self.vc_network.load_state_dict(state_dict)
+            # self.vc_network.eval()
+            #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             self.database.set_goal_type('vc')
             policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
             self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
@@ -503,11 +543,27 @@ class LocoSafeDagger():
                                             norm_policy_input=self.database.get_database_mean_std(), save_video=True)
             
             ## calculate goal-reaching error
+            weights = {
+                "vx": 0.4,  # Weight for policy_vx_error
+                "vy": 0.3,  # Weight for policy_vy_error
+                "w": 0.3    # Weight for policy_w_error
+            }
             # policy error
             policy_vx_error,policy_vy_error,policy_w_error = utils.compute_vc_mse(v_des, w_des, policy_state[:, 0:2], policy_state[:, 5])
+            e_policy = (
+                weights["vx"] * policy_vx_error**2 +
+                weights["vy"] * policy_vy_error**2 +
+                weights["w"] * policy_w_error**2
+            )
             
             # mpc error
-            mpc_vx_error,mpc_vy_error,policy_w_error = utils.compute_vc_mse(v_des,w_des,mpc_state[:,0:2],mpc_state[:,5])
+            mpc_vx_error,mpc_vy_error,mpc_w_error = utils.compute_vc_mse(v_des,w_des,mpc_state[:,0:2],mpc_state[:,5]) 
+            e_mpc = (
+                weights["vx"] * mpc_vx_error**2 +
+                weights["vy"] * mpc_vy_error**2 +
+                weights["w"] * mpc_w_error**2
+            )
+            
             if e_mpc > e_policy:
                 self.errors.append(e_policy)
             else:
@@ -518,11 +574,9 @@ class LocoSafeDagger():
             
             ## TODO:Update dataset
             
-            ## TODO:Update policy
-            
             ## TODO:Update goal distribution with observed errors
             # Compute the likelihood for the current observation
-            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, goal, error, sigma=0.1)
+            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, self.goals[-1], self.errors[-1], sigma=0.1)
             
             # Update the goal distribution
             P_vxvyw = self.update_goal_distribution(P_vxvyw, likelihood)
