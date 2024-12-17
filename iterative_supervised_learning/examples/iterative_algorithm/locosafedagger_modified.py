@@ -279,25 +279,44 @@ class LocoSafeDagger():
         torch.save(payload, savepath)
         print('Network Snapshot saved')
         
-    def load_network(self, filename=None):
+    def load_saved_network(self, filename=None):
         """
-        load policy network and determine input and output sizes
-        """    
-        if filename is None: 
-            Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-            filename = askopenfilename(initialdir=self.cfg.data_save_path) # show an "Open" dialog box and return the path to the selected file
-        if len(filename) == 0:
-            raise FileNotFoundError()
-        file = torch.load(filename, map_location=self.device)
-        self.vc_network = file['network'].to(self.device)
-        self.vc_network.eval()
-        self.policy_input_parameters = file['norm_policy_input']
+        Load a saved network into self.vc_network.
+        
+        Args:
+            filename (str, optional): Path to the saved network file.
+                                      If None, interactive file dialog is used.
+        """
+        # Interactive file selection if no filename is provided
+        if filename is None:
+            Tk().withdraw()  # Hide root window
+            filename = askopenfilename(initialdir=self.network_savepath, title="Select Saved Network File")
 
-        print("Policy Network loaded from: " + filename)
+        # Validate file existence
+        if not filename or not os.path.exists(filename):
+            raise FileNotFoundError("No valid file selected or file does not exist!")
+
+        # Load saved payload
+        payload = torch.load(filename, map_location=self.device)
+
+        # Validate payload keys
+        required_keys = ['network', 'norm_policy_input']
+        if not all(key in payload for key in required_keys):
+            raise KeyError(f"The saved file is missing one of the required keys: {required_keys}")
+
+        # Load network and move to device
+        self.vc_network = payload['network'].to(self.device)
+        self.vc_network.eval()
+
+        # Load normalization parameters
+        self.policy_input_parameters = payload['norm_policy_input']
+
+        # Success messages
+        print(f"Network successfully loaded from: {filename}")
         if self.policy_input_parameters is None:
-            print('Policy Input will NOT be normalized')
+            print("Policy Input will NOT be normalized.")
         else:
-            print('Policy Input will be normalized')
+            print("Policy Input normalization parameters loaded.")
     
     def save_dataset(self, iter):
         """save current database
@@ -454,17 +473,17 @@ class LocoSafeDagger():
             print(f"============ Iteration {i+1} ==============")
             
             ## Train policy
-            wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
-            print('=== Training VC Policy ===')
-            self.database.set_goal_type('vc')
-            if i == 0:  # warmup (different epoch!)
-                self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
-            else:  # normal training
-                self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
+            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
+            # print('=== Training VC Policy ===')
+            # self.database.set_goal_type('vc')
+            # if i == 0:  # warmup (different epoch!)
+            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
+            # else:  # normal training
+            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
                 
-            self.save_network(self.vc_network, name='policy_'+str(i+1))
-            wandb.finish()
-            print('Policy {} training complete',i)
+            # self.save_network(self.vc_network, name='policy_'+str(i+1))
+            # wandb.finish()
+            # print('Policy {} training complete',i)
             
             ## sample goals from the updated distribution
             new_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
@@ -526,15 +545,10 @@ class LocoSafeDagger():
             desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
            
             print("=== Policy Rollout ===")
+            
             # for testing
-            # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
-            # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            # self.vc_network = self.initialize_network(input_size=self.vc_input_size, output_size=self.output_size, 
-            #                                         num_hidden_layer=self.cfg.num_hidden_layer, hidden_dim=self.cfg.hidden_dim,
-            #                                         batch_norm=True)
-            # state_dict = torch.load(model_path, map_location=device,weights_only=True)
-            # self.vc_network.load_state_dict(state_dict)
-            # self.vc_network.eval()
+            model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
+            self.load_saved_network(filename=model_path)
             #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             self.database.set_goal_type('vc')
             policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
