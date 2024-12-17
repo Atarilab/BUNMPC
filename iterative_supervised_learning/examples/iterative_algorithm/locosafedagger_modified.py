@@ -356,7 +356,7 @@ class LocoSafeDagger():
         """
         pass
     
-    def compute_likelihood(self,vx_vals, vy_vals, w_vals, observed_goal, error, sigma=0.1):
+    def compute_likelihood(self,vx_vals, vy_vals, w_vals, observed_goal, vx_obs,vy_obs,w_obs, sigma=0.1):
         """
         Compute the likelihood P(e | vx, vy, w) for each grid point.
 
@@ -371,7 +371,7 @@ class LocoSafeDagger():
         Returns:
             ndarray: Likelihood values for the entire grid.
         """
-        vx_obs, vy_obs, w_obs = observed_goal
+        # vx_obs, vy_obs, w_obs = observed_goal
         likelihood = np.zeros((len(vx_vals), len(vy_vals), len(w_vals)))
 
         for i, vx in enumerate(vx_vals):
@@ -473,17 +473,17 @@ class LocoSafeDagger():
             print(f"============ Iteration {i+1} ==============")
             
             ## Train policy
-            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
-            # print('=== Training VC Policy ===')
-            # self.database.set_goal_type('vc')
-            # if i == 0:  # warmup (different epoch!)
-            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
-            # else:  # normal training
-            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
+            wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
+            print('=== Training VC Policy ===')
+            self.database.set_goal_type('vc')
+            if i == 0:  # warmup (different epoch!)
+                self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
+            else:  # normal training
+                self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
                 
-            # self.save_network(self.vc_network, name='policy_'+str(i+1))
-            # wandb.finish()
-            # print('Policy {} training complete',i)
+            self.save_network(self.vc_network, name='policy_'+str(i+1))
+            wandb.finish()
+            print('Policy {} training complete',i)
             
             ## sample goals from the updated distribution
             new_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
@@ -503,8 +503,8 @@ class LocoSafeDagger():
             start_time = 0.0
 
             # condition on which iterations to show GUI for Pybullet    
-            # display_simu = False
-            display_simu = True
+            display_simu = False
+            # display_simu = True
             
             # init env for if no pybullet server is active
             if self.simulation.currently_displaying_gui is None:
@@ -546,7 +546,7 @@ class LocoSafeDagger():
            
             print("=== Policy Rollout ===")
             
-            # for testing
+            # for testing: if training is being executed, these testing codes are not necessary
             model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
             self.load_saved_network(filename=model_path)
             #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -557,6 +557,7 @@ class LocoSafeDagger():
                                             norm_policy_input=self.database.get_database_mean_std(), save_video=True)
             
             ## calculate goal-reaching error
+            # TODO: tune the weights may cause different error calculation
             weights = {
                 "vx": 0.4,  # Weight for policy_vx_error
                 "vy": 0.3,  # Weight for policy_vy_error
@@ -578,19 +579,37 @@ class LocoSafeDagger():
                 weights["w"] * mpc_w_error**2
             )
             
-            if e_mpc > e_policy:
-                self.errors.append(e_policy)
-            else:
+            ## TODO:Update dataset by comparing errors
+            if e_mpc < e_policy:
                 self.errors.append(e_mpc)
-                        
-            self.goals.append([v_des,w_des])
+                # add D += D_policy
+                # save mpc data to database if sim is successful
+                if len(mpc_state) != 0:
+                    print('No. of expert datapoints: ' + str(len(mpc_state)))  
+                    self.database.append(mpc_state, mpc_action, vc_goals=mpc_vc_goal)
+                    print("data saved into database")
+                    print('database size: ' + str(len(self.database)))
+                else:
+                    print('MPC rollout failed!')
+            else:
+                self.errors.append(e_policy)
+                # add D += D_mpc
+                # save mpc data to database if sim is successful
+                if len(policy_state) != 0:
+                    print('No. of expert datapoints: ' + str(len(policy_state)))  
+                    self.database.append(policy_state, policy_action, vc_goals=policy_vc_goal)
+                    print("data saved into database")
+                    print('database size: ' + str(len(self.database)))
+                else:
+                    print('MPC rollout failed!')
+                
+            # add goals            
+            self.goals.append(np.array([v_des[0], v_des[1], 0, w_des]))
             
-            
-            ## TODO:Update dataset
             
             ## TODO:Update goal distribution with observed errors
             # Compute the likelihood for the current observation
-            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, self.goals[-1], self.errors[-1], sigma=0.1)
+            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, v_des[0],v_des[1],w_des, self.errors[-1], sigma=0.1)
             
             # Update the goal distribution
             P_vxvyw = self.update_goal_distribution(P_vxvyw, likelihood)
