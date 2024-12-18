@@ -423,9 +423,33 @@ class LocoSafeDagger():
         # Convert the index back to grid coordinates
         i, j, k = np.unravel_index(sampled_index, P_vxvyw.shape)
         return vx_vals[i], vy_vals[j], w_vals[k]
-
-    def error_based_sample_from_distribution(self):
+    
+    def sample_k_goals(self,goal_distribution,k):
         pass
+
+    def UCB_based_sample_from_distribution(self,goal_distribution,t):
+        c = 1.0
+        T = 100
+        k = 10
+        # t is the current dagger iteration
+        
+        # initialize
+        print('goal distribution is',goal_distribution)
+        goals = self.sample_k_goals(goal_distribution,k)
+        N = [0] * k
+        mu = [0.0] * k
+        
+        # UCB loop
+        UCB = []
+        for i in range(k):
+            exploration_bonus = c * (np.sqrt(np.log(t) / (N[i] + 1)))
+            UCB.append(mu[i] + exploration_bonus)
+            
+        # Step 2: Select goal with highest UCB
+        selected_idx = np.max(UCB)
+        selected_goal = goals[selected_idx]
+        
+               
 
     def create_desired_contact_schedule(self, pin_robot, urdf_path, q0, v0, v_des, w_des, gait, start_time):
         """
