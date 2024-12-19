@@ -10,10 +10,10 @@ gaits: ["trot"]  # trot, jump, bound
 # desired velocity
 vx_des_min: 0.0 # m_s
 vx_des_max: 0.3  # m/s
-vy_des_min: 0.0 # m_s
-vy_des_max: 0.0  # m/s
-w_des_min: 0.0  # rad/s
-w_des_max: 0.0   # rad/s
+vy_des_min: -0.1 # m_s
+vy_des_max: 0.1  # m/s
+w_des_min: -0.1  # rad/s
+w_des_max: 0.1   # rad/s
 
 # Pertubation variables
 mu_base_pos: 

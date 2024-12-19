@@ -1,5 +1,3 @@
-# This file is to implement Majid's algorithm on the HUAWEI-MIRMI Safeman proposal based on the locosafedagger work from Xun Pua's master thesis time.
-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -37,17 +35,15 @@ from networks import GoalConditionedPolicyNet
 # Allowlist the custom class
 torch.serialization.add_safe_globals([GoalConditionedPolicyNet])
 
-
-
 # set random seed for reproducability
-# seed = 42
-# random.seed(seed)
-# np.random.seed(seed)
-# torch.manual_seed(seed)
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 # login to wandb
-wandb.login()
-project_name = 'locosafedagger_modified'
+# wandb.login()
+# project_name = 'locosafedagger_modified'
 
 # specify safety bounds. If want default, set to None
 safety_bounds_dict = {
@@ -470,19 +466,6 @@ class LocoSafeDagger():
         for i in range(self.num_iterations_locosafedagger):
             print(f"============ Iteration {i+1} ==============")
             
-            ## Train policy
-            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
-            # print('=== Training VC Policy ===')
-            # self.database.set_goal_type('vc')
-            # if i == 0:  # warmup (different epoch!)
-            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
-            # else:  # normal training
-            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
-                
-            # self.save_network(self.vc_network, name='policy_'+str(i+1))
-            # wandb.finish()
-            # print('Policy {} training complete',i)
-            
             ## sample goals from the updated distribution
             new_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
             print(f"Sampled new goal: {new_goal}")
@@ -494,15 +477,13 @@ class LocoSafeDagger():
             v_des = np.array([new_goal[0], new_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
             w_des = np.array(new_goal[2])
             
-            # v_des, w_des = utils.get_des_velocities(self.vx_des_max, self.vx_des_min, self.vy_des_max, self.vy_des_min, 
-            #                                             self.w_des_max, self.w_des_min, gait, dist='uniform')
             
             ## Rollout MPC
             start_time = 0.0
 
             # condition on which iterations to show GUI for Pybullet    
-            # display_simu = False
-            display_simu = True
+            display_simu = False
+            # display_simu = True
             
             # init env for if no pybullet server is active
             if self.simulation.currently_displaying_gui is None:
@@ -525,12 +506,7 @@ class LocoSafeDagger():
             contact_plan = self.simulation.gg.cnt_plan
 
             #====================================================================================================================================================     
-            ## Rollout Policy
-            # why is wandb involved?
-            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i, 'gait':gait}, job_type='rollout_policy', 
-            #                         name='rollout_policy_'+str(i)+'_'+gait)
-            # wandb.log({'vx_des': v_des[0]}) 
-            
+            ## Rollout Policy            
             # VC desired goal
             start_i = int(start_time/self.sim_dt)
             desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
@@ -577,40 +553,24 @@ class LocoSafeDagger():
                 weights["w"] * mpc_w_error**2
             )
             
-            ## TODO:Update dataset by comparing errors
             if e_mpc < e_policy:
-                self.errors.append(e_mpc)
-                # add D += D_policy
-                # save mpc data to database if sim is successful
-                if len(mpc_state) != 0:
-                    print('No. of expert datapoints: ' + str(len(mpc_state)))  
-                    self.database.append(mpc_state, mpc_action, vc_goals=mpc_vc_goal)
-                    print("data saved into database")
-                    print('database size: ' + str(len(self.database)))
-                else:
-                    print('MPC rollout failed!')
+                error = e_mpc
             else:
-                self.errors.append(e_policy)
-                # add D += D_mpc
-                # save mpc data to database if sim is successful
-                if len(policy_state) != 0:
-                    print('No. of expert datapoints: ' + str(len(policy_state)))  
-                    self.database.append(policy_state, policy_action, vc_goals=policy_vc_goal)
-                    print("data saved into database")
-                    print('database size: ' + str(len(self.database)))
-                else:
-                    print('MPC rollout failed!')
+                error = e_policy
                 
-            # add goals            
-            self.goals.append(np.array([v_des[0], v_des[1], 0, w_des]))
+            print('error in iteration {} = {}'.format(i, error))
+
+                
+            # # add goals            
+            # self.goals.append(np.array([v_des[0], v_des[1], 0, w_des]))
             
             
-            ## TODO:Update goal distribution with observed errors
-            # Compute the likelihood for the current observation
-            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, v_des[0],v_des[1],w_des, self.errors[-1], sigma=0.1)
+            # ## TODO:Update goal distribution with observed errors
+            # # Compute the likelihood for the current observation
+            # likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, v_des[0],v_des[1],w_des, self.errors[-1], sigma=0.1)
             
-            # Update the goal distribution
-            P_vxvyw = self.update_goal_distribution(P_vxvyw, likelihood)
+            # # Update the goal distribution
+            # P_vxvyw = self.update_goal_distribution(P_vxvyw, likelihood)
 
 
 @hydra.main(config_path='cfgs', config_name='locosafedagger_modified_config')
@@ -624,4 +584,4 @@ def main(cfg):
 
 if __name__ == '__main__':
     main()   
-    
+

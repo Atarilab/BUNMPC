@@ -1,4 +1,11 @@
-# This file is to implement Majid's algorithm on the HUAWEI-MIRMI Safeman proposal based on the locosafedagger work from Xun Pua's master thesis time.
+import numpy as np
+np.random.seed(237)
+# import matplotlib.pyplot as plt
+# import matplotlib
+# print(matplotlib.get_backend())
+# matplotlib.use('TkAgg')  # or 'TkAgg', 'Qt5Agg', etc.
+from skopt.plots import plot_gaussian_process
+from skopt import gp_minimize
 
 import torch
 import torch.nn as nn
@@ -37,17 +44,11 @@ from networks import GoalConditionedPolicyNet
 # Allowlist the custom class
 torch.serialization.add_safe_globals([GoalConditionedPolicyNet])
 
-
-
 # set random seed for reproducability
 # seed = 42
 # random.seed(seed)
 # np.random.seed(seed)
 # torch.manual_seed(seed)
-
-# login to wandb
-wandb.login()
-project_name = 'locosafedagger_modified'
 
 # specify safety bounds. If want default, set to None
 safety_bounds_dict = {
@@ -448,169 +449,220 @@ class LocoSafeDagger():
         contact_schedule, cnt_plan = cp.get_contact_schedule(pin_robot, urdf_path, q0, v0, v_des, w_des, self.episode_length_data, start_time)
         return contact_schedule, cnt_plan
     
-    def run_unperturbed(self):
-        # TODO:Run through a pipeline that: sample goals -> rollout MPC -> rollout Policy ->
-        # collect the realized contact plan for MPC and policy -> compute error -> data aggregation
-        # -> update policy -> update goal distribution depending on the error 
-        """Run the modified locosafedagger algorithm
+    def collect_data_for_GP(self, num_samples=5):
         """
-        # Define the range and resolution of the goal space
-        vx_min,vx_max,vx_bins = self.vx_des_min, self.vx_des_max, 100
-        vy_min,vy_max,vy_bins = self.vy_des_min, self.vy_des_max, 100
-        w_min,w_max,w_bins= self.w_des_min,self.w_des_max,100
+        Collect training data for the Gaussian Process.
+
+        Args:
+            num_samples (int): Number of samples to collect.
+        """
+        data = []
+
+        for _ in range(num_samples):
+            # Sample random goal within bounds
+            vx = np.random.uniform(self.vx_des_min, self.vx_des_max)
+            vy = np.random.uniform(self.vy_des_min, self.vy_des_max)
+            w = np.random.uniform(self.w_des_min, self.w_des_max)
+
+            # Evaluate the error for the sampled goal
+            error = self.f([vx, w])
+
+            # Store the data (vx, vy, w, error)
+            data.append([vx, vy, w, error])
+
+        # Convert to numpy array and save for training
+        self.errors = np.array(data)
+        print(f"Collected {num_samples} samples for GP optimization.")
+    
+    def error_mpc(self, params, noise_level=0):
+        """
+        Compute the goal-reaching error for a given goal (v_des, w) using MPC or Policy.
+
+        Args:
+            params (list): A list containing [v_des, w].
+            noise_level (float): Optional noise to add for stochasticity.
+
+        Returns:
+            float: Goal-reaching error.
+        """
+        v_des, w = params  # Unpack the list of parameters
+        start_time = 0.0
+        v_des = np.array([v_des, 0, 0])  # vx, vy, vz (set vy=0, vz=0 as default)
+        w_des = np.array(w)
         
-        # Create a 3D grid for (vx, vy, w)
-        vx_vals = np.linspace(vx_min, vx_max, vx_bins)
-        vy_vals = np.linspace(vy_min, vy_max, vy_bins)
-        w_vals = np.linspace(w_min, w_max, w_bins)
+        start_time = 0.0
+        # condition on which iterations to show GUI for Pybullet    
+        display_simu = False
+        # display_simu = True
         
-        # initialize the uniform distribution over the grid
-        P_vxvyw = np.ones((vx_bins, vy_bins, w_bins)) / (vx_bins * vy_bins * w_bins)
-            
+        # init env for if no pybullet server is active
+        if self.simulation.currently_displaying_gui is None:
+            self.simulation.init_pybullet_env(display_simu=display_simu)
+        # change pybullet environment between with/without display, depending on condition
+        elif display_simu != self.simulation.currently_displaying_gui:
+            self.simulation.kill_pybullet_env()
+            self.simulation.init_pybullet_env(display_simu=display_simu)
+
+        mpc_state, _, _, _, _, _ = self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait='trot')
+
+        # Compute errors
+        vx_error, vy_error, w_error = utils.compute_vc_mse(v_des, w_des, mpc_state[:, 0:2], mpc_state[:, 5])
+        error = vx_error**2 + vy_error**2 + w_error**2
+
+        # Add noise if needed
+        error += noise_level * np.random.randn()
+        return error
+    
+    def error_policy(self, params, gait="trot"):
+        """
+        Rollout the policy and calculate the goal-reaching error.
+
+        Args:
+            v_des (array): Desired translational velocity as [vx, vy, vz].
+            w_des (float): Desired yaw velocity.
+            gait (str): Desired gait type for the rollout. Default is 'trot'.
+
+        Returns:
+            float: The calculated goal-reaching error.
+        """
+        start_time = 0.0
+        v_des,w = params
+        v_des = np.array([v_des, 0, 0])  # vx, vy, vz (set vy=0, vz=0 as default)
+        w_des = np.array(w)
+        # Initialize simulation environment if not already initialized
+        if self.simulation.currently_displaying_gui is None:
+            self.simulation.init_pybullet_env(display_simu=False)
+
+        # Generate desired goals for the policy rollout
+        start_i = int(start_time / self.sim_dt)
+        desired_goal = np.zeros((self.episode_length_eval - start_i, 5))  # [phase, vx, vy, w, gait]
+        for t in range(start_i, self.episode_length_eval):
+            desired_goal[t - start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+
+        desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
+        desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
+        desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
+        desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
+
+        # Rollout policy
+        print("=== Policy Rollout ===")
+        model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
+        self.load_saved_network(filename=model_path)
+        self.database.set_goal_type('vc')
+        policy_state, _, _, _, _, _, _, _ = self.simulation.rollout_policy(
+            self.episode_length_eval, 
+            start_time, 
+            v_des, 
+            w_des, 
+            gait, 
+            self.vc_network, 
+            des_goal=desired_goal, 
+            q0=None, 
+            v0=None, 
+            norm_policy_input=self.database.get_database_mean_std(), 
+            save_video=False
+        )
+
+        # Compute errors
+        weights = {
+            "vx": 0.4,  # Weight for vx error
+            "vy": 0.3,  # Weight for vy error
+            "w": 0.3    # Weight for w error
+        }
+        vx_error, vy_error, w_error = utils.compute_vc_mse(
+            v_des, 
+            w_des, 
+            policy_state[:, 0:2], 
+            policy_state[:, 5]
+        )
+        policy_error = (
+            weights["vx"] * vx_error**2 +
+            weights["vy"] * vy_error**2 +
+            weights["w"] * w_error**2
+        )
+
+        # print(f"Policy error: vx_error={vx_error}, vy_error={vy_error}, w_error={w_error}")
+        # print(f"Total policy error: {policy_error}")
+
+        return policy_error
+
+    def compare_error(self, params):
+        """
+        Compare the errors for MPC and Policy rollouts.
+
+        Args:
+            params (list): A list containing [v_des, w].
+
+        Returns:
+            float: The minimum error between MPC and Policy.
+        """
+        # Ensure params are passed correctly as [v_des, w]
+        v_des, w = params
+        w_des = w  # Keep w as is
+
+        # Pass formatted params to error_mpc and error_policy
+        error_mpc = self.error_mpc([v_des, w_des])
+        print(f"MPC error: {error_mpc}")
+
+        error_policy = self.error_policy([v_des, w_des])
+        print(f"Policy error: {error_policy}")
+
+        return min(error_mpc, error_policy)
+
+    
+    def GP_optimization(self):
+        """
+        Perform Bayesian Optimization using Gaussian Processes to minimize the error.
+
+        Args:
+            f (callable): Objective function.
+
+        Returns:
+            OptimizeResult: Results of the optimization.
+        """
+        res = gp_minimize(
+            func=self.compare_error,
+            dimensions=[
+                (self.vx_des_min, self.vx_des_max),  # Bounds for vx
+                (self.w_des_min, self.w_des_max)    # Bounds for w
+            ],
+            acq_func="LCB",
+            n_calls=10,
+            n_random_starts=5,
+            noise=0.1**2,
+            random_state=None
+        )
+
+
+        print("Optimization complete.")
+        print(f"Best parameters: vx={res.x[0]}, w={res.x[1]}")
+        print(f"Minimum error: {res.fun}")
+
+        return res
+    
+    def run_unperturbed(self):
+        # Initialize uniform goal distribution
+        vx_vals = np.linspace(self.vx_des_min, self.vx_des_max, 100)
+        vy_vals = np.linspace(self.vy_des_min, self.vy_des_max, 100)
+        w_vals = np.linspace(self.w_des_min, self.w_des_max, 100)
+        P_vxvyw = np.ones((100, 100, 100)) / (100**3)
+
         for i in range(self.num_iterations_locosafedagger):
-            print(f"============ Iteration {i+1} ==============")
-            
-            ## Train policy
-            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
-            # print('=== Training VC Policy ===')
-            # self.database.set_goal_type('vc')
-            # if i == 0:  # warmup (different epoch!)
-            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_warmup)
-            # else:  # normal training
-            #     self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
-                
-            # self.save_network(self.vc_network, name='policy_'+str(i+1))
-            # wandb.finish()
-            # print('Policy {} training complete',i)
-            
-            ## sample goals from the updated distribution
-            new_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
-            print(f"Sampled new goal: {new_goal}")
-            
-            gait = 'trot'
-            # gait = random.choice(self.gaits)
-            print("gait chose is ",gait)
-            
-            v_des = np.array([new_goal[0], new_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
-            w_des = np.array(new_goal[2])
-            
-            # v_des, w_des = utils.get_des_velocities(self.vx_des_max, self.vx_des_min, self.vy_des_max, self.vy_des_min, 
-            #                                             self.w_des_max, self.w_des_min, gait, dist='uniform')
-            
-            ## Rollout MPC
-            start_time = 0.0
+            print(f"Iteration {i+1}")
 
-            # condition on which iterations to show GUI for Pybullet    
-            # display_simu = False
-            display_simu = True
-            
-            # init env for if no pybullet server is active
-            if self.simulation.currently_displaying_gui is None:
-                self.simulation.init_pybullet_env(display_simu=display_simu)
-            # change pybullet environment between with/without display, depending on condition
-            elif display_simu != self.simulation.currently_displaying_gui:
-                self.simulation.kill_pybullet_env()
-                self.simulation.init_pybullet_env(display_simu=display_simu)
-                
-            print("=== MPC Rollout ===")
-            mpc_state, mpc_action, mpc_vc_goal, mpc_cc_goal, mpc_base, _ = \
-                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)               
-            # TODO: What's difference between vc_goal and cc_goal? 
-            # TODO: find desired goal and realized goal
-            
-            # collect position and velocity of nominal trajectory
-            nominal_pos, nominal_vel = self.simulation.q_nominal, self.simulation.v_nominal
-            
-            # get contact plan of benchmark mpc
-            contact_plan = self.simulation.gg.cnt_plan
+            # Bayesian optimization to find the next goal
+            res = self.GP_optimization()
+            v_des, w = res.x
+            print(f"Selected goal: vx={v_des}, w={w}")
 
-            #====================================================================================================================================================     
-            ## Rollout Policy
-            # why is wandb involved?
-            # wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i, 'gait':gait}, job_type='rollout_policy', 
-            #                         name='rollout_policy_'+str(i)+'_'+gait)
-            # wandb.log({'vx_des': v_des[0]}) 
+            # Roll out MPC and Policy, compute errors
+            error_mpc = self.error_mpc([v_des, w])
+            print(f"Error for selected goal: {error_mpc}")
             
-            # VC desired goal
-            start_i = int(start_time/self.sim_dt)
-            desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
-            for t in range(start_i, self.episode_length_eval):
-                desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+            error_policy = self.error_policy([v_des,w])
+            print(f"Error for selected goal: {error_policy}")
 
-            desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
-            desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
-            desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
-            desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
-           
-            print("=== Policy Rollout ===")
-            
-            # for testing: if training is being executed, these testing codes are not necessary
-            model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
-            self.load_saved_network(filename=model_path)
-            #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-            self.database.set_goal_type('vc')
-            policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
-            self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
-                                            self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
-                                            norm_policy_input=self.database.get_database_mean_std(), save_video=True)
-            
-            ## calculate goal-reaching error
-            # TODO: tune the weights may cause different error calculation
-            weights = {
-                "vx": 0.4,  # Weight for policy_vx_error
-                "vy": 0.3,  # Weight for policy_vy_error
-                "w": 0.3    # Weight for policy_w_error
-            }
-            # policy error
-            policy_vx_error,policy_vy_error,policy_w_error = utils.compute_vc_mse(v_des, w_des, policy_state[:, 0:2], policy_state[:, 5])
-            e_policy = (
-                weights["vx"] * policy_vx_error**2 +
-                weights["vy"] * policy_vy_error**2 +
-                weights["w"] * policy_w_error**2
-            )
-            
-            # mpc error
-            mpc_vx_error,mpc_vy_error,mpc_w_error = utils.compute_vc_mse(v_des,w_des,mpc_state[:,0:2],mpc_state[:,5]) 
-            e_mpc = (
-                weights["vx"] * mpc_vx_error**2 +
-                weights["vy"] * mpc_vy_error**2 +
-                weights["w"] * mpc_w_error**2
-            )
-            
-            ## TODO:Update dataset by comparing errors
-            if e_mpc < e_policy:
-                self.errors.append(e_mpc)
-                # add D += D_policy
-                # save mpc data to database if sim is successful
-                if len(mpc_state) != 0:
-                    print('No. of expert datapoints: ' + str(len(mpc_state)))  
-                    self.database.append(mpc_state, mpc_action, vc_goals=mpc_vc_goal)
-                    print("data saved into database")
-                    print('database size: ' + str(len(self.database)))
-                else:
-                    print('MPC rollout failed!')
-            else:
-                self.errors.append(e_policy)
-                # add D += D_mpc
-                # save mpc data to database if sim is successful
-                if len(policy_state) != 0:
-                    print('No. of expert datapoints: ' + str(len(policy_state)))  
-                    self.database.append(policy_state, policy_action, vc_goals=policy_vc_goal)
-                    print("data saved into database")
-                    print('database size: ' + str(len(self.database)))
-                else:
-                    print('MPC rollout failed!')
-                
-            # add goals            
-            self.goals.append(np.array([v_des[0], v_des[1], 0, w_des]))
-            
-            
-            ## TODO:Update goal distribution with observed errors
-            # Compute the likelihood for the current observation
-            likelihood = self.compute_likelihood(vx_vals, vy_vals, w_vals, v_des[0],v_des[1],w_des, self.errors[-1], sigma=0.1)
-            
-            # Update the goal distribution
-            P_vxvyw = self.update_goal_distribution(P_vxvyw, likelihood)
+
 
 
 @hydra.main(config_path='cfgs', config_name='locosafedagger_modified_config')
@@ -619,9 +671,8 @@ def main(cfg):
     # icc.warmup()
     # icc.database.load_saved_database(filename='/home/atari_ws/data/dagger_safedagger_warmup/dataset/database_112188.hdf5')
     icc.database.load_saved_database(filename='/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Dec_04_2024_16_51_02/dataset/database_1047158.hdf5')
-    # icc.run()
     icc.run_unperturbed()  
 
 if __name__ == '__main__':
     main()   
-    
+
