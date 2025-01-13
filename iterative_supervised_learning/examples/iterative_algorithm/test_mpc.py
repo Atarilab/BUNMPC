@@ -58,8 +58,8 @@ start_time = 0.0
 sim = Simulation(cfg=cfg)
 
 # show GUI?
-# show_visualization = False
-show_visualization = True
+show_visualization = False
+# show_visualization = True
 
 # initialize Pybullet environment
 sim.init_pybullet_env(display_simu=show_visualization)
