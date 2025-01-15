@@ -492,145 +492,145 @@ class LocoSafeDagger():
         vc_goal_his = []
         project_name = "test_policy_remembering"
         
-        # for i in range(10):
-        #     ## sample goals from the updated distribution
-        #     # new_vc_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
+        for i in range(10):
+            ## sample goals from the updated distribution
+            # new_vc_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
             
-        #     new_vc_goal = [vx_min+(i+1)*dvx,vy_min+(i+1)*dvy,w_min+(i+1)*dw] 
-        #     print(f"Sampled new goal: {new_vc_goal}")
+            new_vc_goal = [vx_min+(i+1)*dvx,vy_min+(i+1)*dvy,w_min+(i+1)*dw] 
+            print(f"Sampled new goal: {new_vc_goal}")
             
-        #     v_des = np.array([new_vc_goal[0], new_vc_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
-        #     w_des = np.array(new_vc_goal[2])
-        #     vc_goal_his.append((v_des,w_des))
+            v_des = np.array([new_vc_goal[0], new_vc_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
+            w_des = np.array(new_vc_goal[2])
+            vc_goal_his.append((v_des,w_des))
             
-        #     gait = 'trot'
-        #     print("gait chose is ",gait)
+            gait = 'trot'
+            print("gait chose is ",gait)
             
             
             
-        #     ## Rollout MPC
-        #     start_time = 0.0
+            ## Rollout MPC
+            start_time = 0.0
 
-        #     # condition on which iterations to show GUI for Pybullet    
-        #     # display_simu = False
-        #     display_simu = True
+            # condition on which iterations to show GUI for Pybullet    
+            # display_simu = False
+            display_simu = True
             
-        #     # init env for if no pybullet server is active
-        #     if self.simulation.currently_displaying_gui is None:
-        #         self.simulation.init_pybullet_env(display_simu=display_simu)
-        #     # change pybullet environment between with/without display, depending on condition
-        #     elif display_simu != self.simulation.currently_displaying_gui:
-        #         self.simulation.kill_pybullet_env()
-        #         self.simulation.init_pybullet_env(display_simu=display_simu)
+            # init env for if no pybullet server is active
+            if self.simulation.currently_displaying_gui is None:
+                self.simulation.init_pybullet_env(display_simu=display_simu)
+            # change pybullet environment between with/without display, depending on condition
+            elif display_simu != self.simulation.currently_displaying_gui:
+                self.simulation.kill_pybullet_env()
+                self.simulation.init_pybullet_env(display_simu=display_simu)
                 
-        #     print("=== MPC rollout ===")
-        #     mpc_state, mpc_action, mpc_vc_goal, mpc_cc_goal, mpc_base, _ = \
-        #                 self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)
-        #     # input("Press Enter to continue...")           
+            print("=== MPC rollout ===")
+            mpc_state, mpc_action, mpc_vc_goal, mpc_cc_goal, mpc_base, _ = \
+                        self.simulation.rollout_mpc(self.episode_length_eval, start_time, v_des, w_des, gait, nominal=True)
+            # input("Press Enter to continue...")           
             
-        #     # collect position and velocity of nominal trajectory
-        #     nominal_pos, nominal_vel = self.simulation.q_nominal, self.simulation.v_nominal
+            # collect position and velocity of nominal trajectory
+            nominal_pos, nominal_vel = self.simulation.q_nominal, self.simulation.v_nominal
             
-        #     # get contact plan of benchmark mpc
-        #     contact_plan = self.simulation.gg.cnt_plan
+            # get contact plan of benchmark mpc
+            contact_plan = self.simulation.gg.cnt_plan
             
-        #     ## Update database
-        #     if len(mpc_state) != 0:
-        #             print('No. of expert datapoints: ' + str(len(mpc_state)))  
-        #             self.database.append(mpc_state, mpc_action, vc_goals=mpc_vc_goal)
-        #             print("data saved into database")
-        #             print('database size: ' + str(len(self.database)))
-        #     else:
-        #         print('MPC rollout failed!')
+            ## Update database
+            if len(mpc_state) != 0:
+                    print('No. of expert datapoints: ' + str(len(mpc_state)))  
+                    self.database.append(mpc_state, mpc_action, vc_goals=mpc_vc_goal)
+                    print("data saved into database")
+                    print('database size: ' + str(len(self.database)))
+            else:
+                print('MPC rollout failed!')
             
             
 
-        # ##====================================================================================================================================================     
-        #     ## Rollout Policy
-        #     for j in range(i+1):            
-        #         # VC desired goal
-        #         start_i = int(start_time/self.sim_dt)
-        #         desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
-        #         vc_goal_policy = vc_goal_his[j]
-        #         v_des = vc_goal_policy[0]
-        #         w_des = vc_goal_policy[1]
-        #         for t in range(start_i, self.episode_length_eval):
-        #             desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+        ##====================================================================================================================================================     
+            ## Rollout Policy
+            for j in range(i+1):            
+                # VC desired goal
+                start_i = int(start_time/self.sim_dt)
+                desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
+                vc_goal_policy = vc_goal_his[j]
+                v_des = vc_goal_policy[0]
+                w_des = vc_goal_policy[1]
+                for t in range(start_i, self.episode_length_eval):
+                    desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
 
-        #         desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
-        #         desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
-        #         desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
-        #         desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
+                desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
+                desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
+                desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
+                desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
                 
-        #         print("=== Policy Rollout ===")
+                print("=== Policy Rollout ===")
                 
-        #         # TODO: CC goals
+                # TODO: CC goals
                 
-        #         # for testing: if training is being executed, these testing codes are not necessary
-        #         # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
-        #         model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_{i+1}.pth"
+                # for testing: if training is being executed, these testing codes are not necessary
+                # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
+                model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_{i+1}.pth"
 
-        #         # print("policy load from: ",model_path)
-        #         self.load_saved_network(filename=model_path)
-        #         #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        #         self.database.set_goal_type('vc')
-        #         policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
-        #         self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
-        #                                         self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
-        #                                         norm_policy_input=self.database.get_database_mean_std(), save_video=True)
-        #         input("Press Enter to continue...")
+                # print("policy load from: ",model_path)
+                self.load_saved_network(filename=model_path)
+                #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                self.database.set_goal_type('vc')
+                policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
+                self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
+                                                self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
+                                                norm_policy_input=self.database.get_database_mean_std(), save_video=True)
+                input("Press Enter to continue...")
         
         
-        ## Rollout policy once
-        # condition on which iterations to show GUI for Pybullet    
-        # display_simu = False
-        display_simu = True
+        # ## Rollout policy once
+        # # condition on which iterations to show GUI for Pybullet    
+        # # display_simu = False
+        # display_simu = True
         
-        # init env for if no pybullet server is active
-        if self.simulation.currently_displaying_gui is None:
-            self.simulation.init_pybullet_env(display_simu=display_simu)
-        # change pybullet environment between with/without display, depending on condition
-        elif display_simu != self.simulation.currently_displaying_gui:
-            self.simulation.kill_pybullet_env()
-            self.simulation.init_pybullet_env(display_simu=display_simu)
+        # # init env for if no pybullet server is active
+        # if self.simulation.currently_displaying_gui is None:
+        #     self.simulation.init_pybullet_env(display_simu=display_simu)
+        # # change pybullet environment between with/without display, depending on condition
+        # elif display_simu != self.simulation.currently_displaying_gui:
+        #     self.simulation.kill_pybullet_env()
+        #     self.simulation.init_pybullet_env(display_simu=display_simu)
                 
-        start_time = 0.0
-        index = 5
-        gait = "trot"
-        new_vc_goal = [vx_min + index*dvx/2, vy_min + index*dvy/2, w_min + index*dw/2] 
-        print(f"Sampled new goal: {new_vc_goal}")
+        # start_time = 0.0
+        # index = 5
+        # gait = "trot"
+        # new_vc_goal = [vx_min + index*dvx/2, vy_min + index*dvy/2, w_min + index*dw/2] 
+        # print(f"Sampled new goal: {new_vc_goal}")
         
-        v_des = np.array([new_vc_goal[0], new_vc_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
-        w_des = np.array(new_vc_goal[2])
+        # v_des = np.array([new_vc_goal[0], new_vc_goal[1], 0]) # [vx_des,vy_des,vz_des] with vz_des = 0 always
+        # w_des = np.array(new_vc_goal[2])
         
-        # VC desired goal
-        start_i = int(start_time/self.sim_dt)
-        desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
-        for t in range(start_i, self.episode_length_eval):
-            desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+        # # VC desired goal
+        # start_i = int(start_time/self.sim_dt)
+        # desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
+        # for t in range(start_i, self.episode_length_eval):
+        #     desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
 
-        desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
-        desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
-        desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
-        desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
+        # desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
+        # desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
+        # desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
+        # desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
         
-        print("=== Policy Rollout ===")
+        # print("=== Policy Rollout ===")
         
-        # TODO: CC goals
+        # # TODO: CC goals
         
-        # for testing: if training is being executed, these testing codes are not necessary
-        # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
-        model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_10.pth"
+        # # for testing: if training is being executed, these testing codes are not necessary
+        # # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
+        # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_10.pth"
 
-        # print("policy load from: ",model_path)
-        self.load_saved_network(filename=model_path)
-        #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        self.database.set_goal_type('vc')
-        policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
-        self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
-                                        self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
-                                        norm_policy_input=self.database.get_database_mean_std(), save_video=True)
-        input("Press Enter to continue...")
+        # # print("policy load from: ",model_path)
+        # self.load_saved_network(filename=model_path)
+        # #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # self.database.set_goal_type('vc')
+        # policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
+        # self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
+        #                                 self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
+        #                                 norm_policy_input=self.database.get_database_mean_std(), save_video=True)
+        # input("Press Enter to continue...")
 
 
 

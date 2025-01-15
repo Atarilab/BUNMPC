@@ -504,7 +504,7 @@ class LocoSafeDagger():
             vc_goal_his.append((v_des,w_des))
             
             gait = 'trot'
-            print("gait chose is ",gait)
+            print("gait chosen is ",gait)
             
             
             
