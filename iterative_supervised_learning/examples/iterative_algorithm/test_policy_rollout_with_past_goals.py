@@ -491,6 +491,9 @@ class LocoSafeDagger():
         
         vc_goal_his = []
         project_name = "test_policy_remembering"
+        error_vx_his = np.zeros((10, 10))
+        error_vy_his = np.zeros((10, 10))
+
         
         for i in range(10):
             ## sample goals from the updated distribution
@@ -512,8 +515,8 @@ class LocoSafeDagger():
             start_time = 0.0
 
             # condition on which iterations to show GUI for Pybullet    
-            # display_simu = False
-            display_simu = True
+            display_simu = False
+            # display_simu = True
             
             # init env for if no pybullet server is active
             if self.simulation.currently_displaying_gui is None:
@@ -574,11 +577,92 @@ class LocoSafeDagger():
                 self.load_saved_network(filename=model_path)
                 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                 self.database.set_goal_type('vc')
-                policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
-                self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
+                # normal rollout policy
+                # policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
+                # self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
+                #                                 self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
+                #                                 norm_policy_input=self.database.get_database_mean_std(), save_video=True)
+                
+                # rollout policy and return com_position and com_velocity
+                policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, policy_com_pos, policy_com_vel, _, _, frames = \
+                self.simulation.rollout_policy_return_com_state(self.episode_length_eval, start_time, v_des, w_des, gait, 
                                                 self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
                                                 norm_policy_input=self.database.get_database_mean_std(), save_video=True)
-                input("Press Enter to continue...")
+                # print(policy_vc_goal)
+                # print(policy_state)
+                if len(policy_com_vel)>0:
+                    # print(policy_com_vel[0,:])
+                    # print([row[0] for row in policy_com_vel])
+                    # print([row[1] for row in policy_com_vel])
+                    
+                    # visualization
+                    vx = [row[0] for row in policy_com_vel]  # First column (vx)
+                    vy = [row[1] for row in policy_com_vel]
+                    vx_mean = np.mean(vx)
+                    vy_mean = np.mean(vy)
+                    error_vx_his[i,j] = (vx_mean - v_des[0]) ** 2
+                    error_vy_his[i,j] = (vy_mean - v_des[1]) ** 2
+                    
+                    # plt.figure(figsize=(10, 5))
+                    # # Plot vx over time
+                    # plt.plot(vx, color='r',label='vx (Translational velocity in x)', linestyle='-')
+                    
+                    # # Plot vy over time
+                    # plt.plot(vy, color='g',label='vy (Translational velocity in y)', linestyle='-')
+                    
+                    # # Add horizontal lines for v_des[0] and v_des[1]
+                    # plt.axhline(y=v_des[0], color='r', linestyle='--', label=f'vx_des= {v_des[0]}')
+                    # plt.axhline(y=v_des[1], color='g', linestyle='--', label=f'vy_des = {v_des[1]}')
+                    
+                    # plt.title(f'Policy{i+1} CoM Velocities (vx and vy) on Velocity goal {j+1} Over Time')
+                    # plt.xlabel('Time Step')
+                    # plt.ylabel('Velocity')
+                    # plt.legend()
+                    # plt.grid(True)
+                    # plt.show()
+                
+                else:
+                    error_vx_his[i,j] = 0.01
+                    error_vy_his[i,j] = 0.01
+
+                # input("Press Enter to continue...")
+                
+                
+        # Plot error_vx_his
+        plt.figure(figsize=(10, 5))
+        for policy_idx in range(error_vx_his.shape[0]):  # Iterate over each policy
+            plt.plot(
+                range(error_vx_his.shape[1]),  # Goal indices
+                error_vx_his[policy_idx, :],  # Errors for the current policy
+                label=f'Policy {policy_idx + 1}'  # Label for each policy
+            )
+
+        plt.title('Error in vx Across Goals for Different Policies')
+        plt.xlabel('Goal Index')
+        plt.ylabel('Error (vx)')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+        
+        # Plot error_vy_his
+        plt.figure(figsize=(10, 5))
+        for policy_idx in range(error_vy_his.shape[0]):  # Iterate over each policy
+            plt.plot(
+                range(error_vy_his.shape[1]),  # Goal indices
+                error_vy_his[policy_idx, :],  # Errors for the current policy
+                label=f'Policy {policy_idx + 1}'  # Label for each policy
+            )
+
+        plt.title('Error in vy Across Goals for Different Policies')
+        plt.xlabel('Goal Index')
+        plt.ylabel('Error (vy)')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+                
+                
+
+
         
         
         # ## Rollout policy once

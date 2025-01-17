@@ -1775,3 +1775,320 @@ class Simulation():
         else:
             return [], [], [], [], np.array(q_history), np.array(v_history), mpc_usage, frames
     
+    def rollout_policy_return_com_state(self, episode_length, start_time, v_des, w_des, gait, policy_network, des_goal,
+                       q0=None, v0=None, norm_policy_input:list=None,
+                       uneven_terrain = False, save_video = False, add_noise = False, return_robot_state_if_fail=False,
+                       push_f=[0, 0, 0], push_t=2.0, push_dt=0.001, fail_angle=30): 
+        """Rollout robot with policy network
+
+        Args:
+            episode_length (int): simulation episode length (in sim step NOT sim time!)
+            start_time (_type_): simulation start time (in sim time NOT sim step!)
+            v_des (_type_): desired CoM translational velocity
+            w_des (_type_): desired CoM yaw
+            gait (_type_): desired gait
+            policy_network (_type_): Policy network used to control robot
+            des_goal (_type_): desired goal input to policy network
+            q0 (_type_, optional): initial robot configuration. Defaults to None.
+            v0 (_type_, optional): initial robot velocity. Defaults to None.
+            norm_policy_input (list, optional): input normalization parameters. Defaults to None.
+            uneven_terrain (bool, optional): set if simulation environment should have uneven terrain. Defaults to False.
+            save_video (bool, optional): set if a video of the simulation should be saved. Defaults to False.
+            add_noise (bool, optional): set if noise should be added to robot state. Defaults to False.
+            return_robot_state_if_fail (bool, optional): set if robot q and v should be returned even if robot sim fails. Defaults to False.
+            push_f (list, optional): external push force. Defaults to [0, 0, 0].
+            push_t (float, optional): external push time (like at 2s in a 5s simulation). Defaults to 2.0.
+            push_dt (float, optional): external push dt (to create an impulse). Defaults to 0.001.
+            fail_angle (int, optional): angle to consider robot as failed. Defaults to 30.
+
+        Returns:
+            state_history: robot state history. [] if failed
+            action_history: robot action history. [] if failed
+            vc_goal_history: velocity conditioned goal history. [] if failed
+            cc_goal_history: contact conditioned goal history. [] if failed
+            base_history: robot base absolute coordinate history. [] if failed
+            q_history: robot q history. (only if return_robot_state_if_fail is True)
+            v_history: robot v history. (only if return_robot_state_if_fail is True)
+            frames: captured frames
+        """        
+          
+        # check if initial robot configuration is given
+        if q0 is None:
+            q0 = self.q0
+        else:
+            assert len(q0) == self.pin_robot.model.nq, 'size of q0 given not OK!'
+        
+        # check if initial robot velocity is given
+        if v0 is None:
+            v0 = self.v0
+        else:
+            assert len(v0) == self.pin_robot.model.nv, 'size of v0 given not OK!'
+        
+        # set robot to initial position
+        pin.forwardKinematics(self.pin_robot.model, self.pin_robot.data, q0, v0)
+        pin.updateFramePlacements(self.pin_robot.model, self.pin_robot.data)    
+        
+        # reset robot state
+        self.pybullet_env.reset_robot_state(q0, v0) 
+        
+        # get gait files
+        plan = utils.get_plan(gait)
+        self.gait_params = plan
+        
+        # action type
+        action_type = self.cfg.action_type
+        
+        # data related variables
+        n_action = self.cfg.n_action
+        n_state = self.cfg.n_state
+        goal_horizon = self.cfg.goal_horizon
+        
+        # check if input normalization parameters are ok if given
+        if norm_policy_input is not None:
+            assert len(norm_policy_input) == 4, 'norm_policy_input should have the terms [state_mean, state_std, goal_mean, goal_std]' 
+        
+        # WATCHOUT: torch device double reclared!
+        # Policy: Initialize Torch device
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Policy: set network in evaluation mode
+        policy_network.eval()
+        
+        # generate uneven terrain if enabled
+        if uneven_terrain:
+            self.pybullet_env.generate_terrain()
+        
+        # if save video enabled
+        frames = []
+        if save_video:
+            video_cnt = int(1.0 / (self.sim_dt * self.video_fr))
+            current_date = datetime.today().strftime("%b_%d_%Y_")
+            current_time = datetime.now().strftime("%H_%M_%S")
+            
+        
+        # State variables
+        state_history = np.zeros((episode_length - int(start_time/self.sim_dt), n_state))
+        base_history = np.zeros((episode_length - int(start_time/self.sim_dt), 3))
+        com_history = np.zeros((episode_length - int(start_time/self.sim_dt), 3))
+        com_vel_history = np.zeros((episode_length - int(start_time/self.sim_dt), 3))
+        q_history, v_history = [], []
+        
+        # goal variables
+        vc_goal_history = np.zeros((episode_length - int(start_time/self.sim_dt), 5))
+        
+        # variables for contacts
+        ee_pos = np.zeros(len(self.f_arr)*3)
+        pre_ee_pos = np.zeros((len(self.f_arr),3))
+        new_contact_pos = []
+        
+        # Action variables
+        if action_type == "structured":
+            action_history = np.zeros((episode_length - int(start_time/self.sim_dt), 3*n_action))
+        else:
+            action_history = np.zeros((episode_length - int(start_time/self.sim_dt), n_action))
+        
+        # initialize variables for finite difference
+        previous_com_pos = None
+        previous_yaw = None
+            
+        # NOTE: main simulation loop
+        for o in range(int(start_time/self.sim_dt), episode_length):
+            
+            time_elapsed = o - int(start_time/self.sim_dt)
+            
+            # get current robot state
+            q, v = self.pybullet_env.get_state()
+            
+            # capture frames
+            if save_video:
+                if o % video_cnt == 0:
+                    cam_dist, cam_yaw, cam_pitch, target = self.calc_best_cam_pos(q)
+                    image = self.pybullet_env.capture_image_frame(width=self.video_width, height=self.video_height, 
+                                                                  cam_dist=cam_dist, cam_yaw=cam_yaw, cam_pitch=cam_pitch, target=target)
+                    frames.append(image)
+            
+            # record q and v history
+            q_history.append(q)
+            v_history.append(v)
+            
+            # add sensor noise if enabled
+            if add_noise:
+                q[0:3] += self.dq_pos
+                q[3:7] += self.dq_ori
+                q[3:7] = q[3:7]/np.linalg.norm(q[3:7])
+                q[7:] += self.dq_joint
+                v[0:6] += self.dv_pos
+                v[6:] += self.dv_joint
+            
+            # Perform forward kinematics and updates in pinocchio
+            pin.forwardKinematics(self.pin_robot.model, self.pin_robot.data, q, v)
+            pin.updateFramePlacements(self.pin_robot.model, self.pin_robot.data)
+
+            # collect state history = current robot state
+            base_history[time_elapsed, :] = q[0 : 3]
+            
+            com_pos = pin.centerOfMass(self.pin_robot.model, self.pin_robot.data, q)          
+            
+            if previous_com_pos is not None:
+                # Compute CoM velocities (vx, vy) using finite differences
+                delta_pos = com_pos - previous_com_pos
+                vx = delta_pos[0] / self.sim_dt
+                vy = delta_pos[1] / self.sim_dt
+              
+                # Compute yaw (psi) and yaw rate (w)
+                current_yaw = np.arctan2(com_pos[1], com_pos[0])
+                if previous_yaw is not None:
+                    delta_yaw = current_yaw - previous_yaw
+
+                    # Handle angle wrapping
+                    if delta_yaw > np.pi:
+                        delta_yaw -= 2 * np.pi
+                    elif delta_yaw < -np.pi:
+                        delta_yaw += 2 * np.pi
+
+                    w = delta_yaw / self.sim_dt
+                else:
+                    w = 0.0  # Assume no initial yaw rate
+            else:
+                vx, vy, w = 0.0, 0.0, 0.0  # Initialize at the first step 
+            
+            # Update previous state
+            previous_com_pos = com_pos
+            previous_yaw = np.arctan2(com_pos[1], com_pos[0])
+
+            # Store results in com_history
+            com_history[time_elapsed, :] = com_pos  # CoM position
+            com_vel_history[time_elapsed, 0:2] = [vx, vy]  # CoM translational velocities
+            com_vel_history[time_elapsed, 2] = w  # Yaw rate 
+            
+            state_history[time_elapsed, :self.pin_robot.model.nv] = v
+            state_history[time_elapsed, self.pin_robot.model.nv:self.pin_robot.model.nv + 2*len(self.f_arr)] = self.base_wrt_foot(q)
+            state_history[time_elapsed, self.pin_robot.model.nv + 2*len(self.f_arr):] = q[2:]
+
+            # collect vc goal
+            vc_goal_history[time_elapsed, 0] = self.phase_percentage(o)
+            vc_goal_history[time_elapsed, 1:3] = v_des[0:2]
+            vc_goal_history[time_elapsed, 3] = w_des
+            vc_goal_history[time_elapsed, 4] = utils.get_vc_gait_value(gait)
+                    
+            # get state from state history
+            state = state_history[time_elapsed:time_elapsed+1]
+            
+            # desired goal also considers start time!
+            goal = des_goal[time_elapsed:time_elapsed+1, :]
+            
+            # normalize policy input if required
+            if norm_policy_input is not None:
+                # norm_policy_input => [state_mean, state_std, goal_mean, goal_std]
+                state = (state - norm_policy_input[0]) / norm_policy_input[1]
+                goal = (goal - norm_policy_input[2]) / norm_policy_input[3]
+            
+            # construct input
+            input = np.hstack((state, goal))
+            
+            # forward pass on policy network
+            action = policy_network(torch.from_numpy(input).to(device).float())
+            action = action.detach().cpu().numpy().reshape(-1)
+                
+            # compute action using given action type
+            if action_type =="torque":
+                tau = action
+                action_history[time_elapsed, :] = tau
+                
+            elif action_type == "pd_target":
+                q_des = action
+                tau = self.kp * (q_des - q[7:]) - self.kd * v[6:]
+                # WATCHOUT: action history for pd target is q_des and not tau!!!
+                action_history[time_elapsed, :] = q_des
+                
+            elif action_type == "structured":
+                tau_ff = action[:self.pin_robot.model.nv - 6]
+                q_des = action[self.pin_robot.model.nv - 6:2*(self.pin_robot.model.nv - 6)]
+                dq_des = action[2*(self.pin_robot.model.nv - 6):3*(self.pin_robot.model.nv - 6)]
+                
+                tau = tau_ff + self.kp * (q_des - q[7:]) + self.kd * (dq_des- v[6:])
+                x_des = np.hstack((q_des[7:], dq_des[6:]))
+                action_history[time_elapsed,:] = np.hstack((tau_ff, x_des))
+            
+            # check if robot state failed
+            sim_failed = self.failed_states(q, gait, time_elapsed, fail_angle=fail_angle)
+            if sim_failed:
+                print('Policy Rollout Failed at sim step ' + str(o))
+                break
+
+            # send joint commands to robot
+            self.pybullet_env.send_joint_command(tau)
+
+            # collect goal-related quantities          
+            ee_pos, ee_force = self.pybullet_env.get_contact_positions_and_forces()
+            
+            # see if there are new end effector contacts with the ground
+            new_ee = self.new_ee_contact(ee_pos, pre_ee_pos)
+            pre_ee_pos[:] = ee_pos[:]
+            
+            # record new eef contacts as [id, time, x, y, z pos]
+            if not o == 0: # we do not need the switch at initialization
+                for ee in new_ee:
+                    new_ee_entry = np.hstack((np.hstack((ee, o)), ee_pos[int(ee)]))
+                    if len(new_contact_pos) == 0:
+                        new_contact_pos = new_ee_entry
+                    else:
+                        new_contact_pos = np.vstack((new_contact_pos, new_ee_entry))
+                        
+                    pybullet.addUserDebugPoints([ee_pos[int(ee)]], [[1, 0, 0]], pointSize=5, lifeTime=3.0)
+
+            # exert disturbance
+            if o>=(push_t/self.sim_dt) and o<((push_t+push_dt)/self.sim_dt):
+                self.pybullet_env.apply_external_force(push_f, [0, 0, 0])
+            
+        
+        # collect measured goal history if sim is successful
+        if sim_failed is False:
+            n_eff = len(self.f_arr)
+            self.contact_schedule = utils.construct_contact_schedule(new_contact_pos, n_eff)
+            cc_goal_history = utils.construct_cc_goal(episode_length, n_eff, self.contact_schedule, com_history, 
+                                        goal_horizon=goal_horizon, sim_dt=self.sim_dt, start_step=int(start_time/self.sim_dt))
+
+        # save simulation video
+        # if save_video:
+        #     video_path = self.video_dir + '/' + current_date + current_time + '.mp4'
+            # self.create_mp4_video(video_path, frames)
+
+        # return histories if the simulation does not diverge
+        # Return histories if the simulation does not diverge
+        if not sim_failed:
+            end_time = len(cc_goal_history)
+            return (state_history[0:end_time, :], 
+                    action_history[0:end_time, :], 
+                    vc_goal_history[0:end_time, :], 
+                    cc_goal_history, 
+                    base_history[0:end_time, :], 
+                    com_history[0:end_time, :],  # Include com_history here
+                    com_vel_history[0:end_time, :],
+                    np.array(q_history), 
+                    np.array(v_history), 
+                    frames)
+
+        elif sim_failed and return_robot_state_if_fail:
+            return ([], 
+                    [], 
+                    [], 
+                    [], 
+                    [], 
+                    com_history[:],  # Return the entire com_history up to the failure
+                    com_vel_history[:],
+                    np.array(q_history), 
+                    np.array(v_history), 
+                    frames)
+
+        else:
+            return ([], 
+                    [], 
+                    [], 
+                    [], 
+                    [], 
+                    [],  # Return an empty list for com_history
+                    [],
+                    [], 
+                    [], 
+                    frames)
