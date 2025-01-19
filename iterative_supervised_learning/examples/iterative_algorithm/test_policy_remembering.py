@@ -472,10 +472,11 @@ class LocoSafeDagger():
         # 4th: train with behavior cloning and get policy
         """Run the test_policy_remembering
         """
+        n_goals = 20
         # Define the range and resolution of the goal space
-        vx_min,vx_max,vx_bins = self.vx_des_min, self.vx_des_max, 10
-        vy_min,vy_max,vy_bins = self.vy_des_min, self.vy_des_max, 10
-        w_min,w_max,w_bins= self.w_des_min,self.w_des_max,10
+        vx_min,vx_max,vx_bins = self.vx_des_min, self.vx_des_max, n_goals
+        vy_min,vy_max,vy_bins = self.vy_des_min, self.vy_des_max, n_goals
+        w_min,w_max,w_bins= self.w_des_min,self.w_des_max,n_goals
         
         # Create a 3D grid for (vx, vy, w)
         vx_vals = np.linspace(vx_min, vx_max, vx_bins)
@@ -492,7 +493,7 @@ class LocoSafeDagger():
         vc_goal_his = []
         project_name = "test_policy_remembering"
         
-        for i in range(10):
+        for i in range(n_goals):
             ## sample goals from the updated distribution
             # new_vc_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
             
@@ -512,8 +513,8 @@ class LocoSafeDagger():
             start_time = 0.0
 
             # condition on which iterations to show GUI for Pybullet    
-            # display_simu = False
-            display_simu = True
+            display_simu = False
+            # display_simu = True
             
             # init env for if no pybullet server is active
             if self.simulation.currently_displaying_gui is None:
@@ -547,47 +548,52 @@ class LocoSafeDagger():
             wandb.init(project=project_name, config={'database_size':len(self.database), 'iteration':i+1}, job_type='training', name='training')
             print('=== Training VC Policy ===')
             self.database.set_goal_type('vc')
+            # every time train from scratch
+            self.vc_network = self.initialize_network(input_size=self.vc_input_size, output_size=self.output_size, 
+                                                    num_hidden_layer=self.cfg.num_hidden_layer, hidden_dim=self.cfg.hidden_dim,
+                                                    batch_norm=True)
+            
+            # iterative training
             self.vc_network = self.train_network(self.vc_network, batch_size=self.batch_size, learning_rate=self.learning_rate, n_epoch=self.n_epoch_data)
                 
             self.save_network(self.vc_network, name='policy_'+str(i+1))
             wandb.finish()
-            print('Policy {} training complete',i+1)
-            
+            print(f'Policy {i+1} training complete')            
             
 
         #====================================================================================================================================================     
-            ## Rollout Policy
-            for j in range(i+1):            
-                # VC desired goal
-                start_i = int(start_time/self.sim_dt)
-                desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
-                vc_goal_policy = vc_goal_his[j]
-                v_des = vc_goal_policy[0]
-                w_des = vc_goal_policy[1]
-                for t in range(start_i, self.episode_length_eval):
-                    desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
+            # ## Rollout Policy
+            # for j in range(i+1):            
+            #     # VC desired goal
+            #     start_i = int(start_time/self.sim_dt)
+            #     desired_goal = np.zeros((self.episode_length_eval - start_i, 5))
+            #     vc_goal_policy = vc_goal_his[j]
+            #     v_des = vc_goal_policy[0]
+            #     w_des = vc_goal_policy[1]
+            #     for t in range(start_i, self.episode_length_eval):
+            #         desired_goal[t-start_i, 0] = utils.get_phase_percentage(t, self.sim_dt, gait)
 
-                desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
-                desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
-                desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
-                desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
+            #     desired_goal[:, 1] = np.full(np.shape(desired_goal[:, 1]), v_des[0])
+            #     desired_goal[:, 2] = np.full(np.shape(desired_goal[:, 2]), v_des[1])
+            #     desired_goal[:, 3] = np.full(np.shape(desired_goal[:, 3]), w_des)
+            #     desired_goal[:, 4] = np.full(np.shape(desired_goal[:, 4]), utils.get_vc_gait_value(gait))
                 
-                print("=== Policy Rollout ===")
+            #     print("=== Policy Rollout ===")
                 
-                # TODO: CC goals
+            #     # TODO: CC goals
                 
-                # for testing: if training is being executed, these testing codes are not necessary
-                # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
-                model_path = f"{self.network_savepath}/policy_{i+1}.pth"
-                # print("policy load from: ",model_path)
-                self.load_saved_network(filename=model_path)
-                #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                self.database.set_goal_type('vc')
-                policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
-                self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
-                                                self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
-                                                norm_policy_input=self.database.get_database_mean_std(), save_video=True)
-                # input("Press Enter to continue...")
+            #     # for testing: if training is being executed, these testing codes are not necessary
+            #     # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
+            #     model_path = f"{self.network_savepath}/policy_{i+1}.pth"
+            #     # print("policy load from: ",model_path)
+            #     self.load_saved_network(filename=model_path)
+            #     #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            #     self.database.set_goal_type('vc')
+            #     policy_state, policy_action, policy_vc_goal, policy_cc_goal, policy_base, _, _, frames = \
+            #     self.simulation.rollout_policy(self.episode_length_eval, start_time, v_des, w_des, gait, 
+            #                                     self.vc_network, des_goal=desired_goal, q0=None, v0=None, 
+            #                                     norm_policy_input=self.database.get_database_mean_std(), save_video=True)
+            #     # input("Press Enter to continue...")
 
 
 

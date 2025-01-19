@@ -487,10 +487,11 @@ class LocoSafeDagger():
         # 4th: train with behavior cloning and get policy
         """Run the test_policy_remembering
         """
+        n_goals = 20
         # Define the range and resolution of the goal space
-        vx_min,vx_max,vx_bins = self.vx_des_min, self.vx_des_max, 10
-        vy_min,vy_max,vy_bins = self.vy_des_min, self.vy_des_max, 10
-        w_min,w_max,w_bins= self.w_des_min,self.w_des_max,10
+        vx_min,vx_max,vx_bins = self.vx_des_min, self.vx_des_max, n_goals
+        vy_min,vy_max,vy_bins = self.vy_des_min, self.vy_des_max, n_goals
+        w_min,w_max,w_bins= self.w_des_min,self.w_des_max,n_goals
         
         # Create a 3D grid for (vx, vy, w)
         vx_vals = np.linspace(vx_min, vx_max, vx_bins)
@@ -506,11 +507,12 @@ class LocoSafeDagger():
         
         vc_goal_his = []
         project_name = "test_policy_remembering"
-        error_vx_his = np.zeros((10, 10))
-        error_vy_his = np.zeros((10, 10))
+        n_goals = 20
+        error_vx_his = np.zeros((n_goals, n_goals))
+        error_vy_his = np.zeros((n_goals, n_goals))
 
         
-        for i in range(10):
+        for i in range(n_goals):
             ## sample goals from the updated distribution
             # new_vc_goal = self.random_sample_from_distribution(P_vxvyw, vx_vals, vy_vals, w_vals)
             
@@ -530,8 +532,8 @@ class LocoSafeDagger():
             start_time = 0.0
 
             # condition on which iterations to show GUI for Pybullet    
-            display_simu = False
-            # display_simu = True
+            # display_simu = False
+            display_simu = True
             
             # init env for if no pybullet server is active
             if self.simulation.currently_displaying_gui is None:
@@ -586,8 +588,11 @@ class LocoSafeDagger():
                 
                 # for testing: if training is being executed, these testing codes are not necessary
                 # model_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Dec_16_2024_14_12_55/network/policy_1.pth"
-                model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_{i+1}.pth"
-
+                # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_{i+1}.pth"
+                # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_10_27_05/network/policy_{i+1}.pth"
+                # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_13_58_14/network/policy_{i+1}.pth"
+                # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_14_39_28/network/policy_{i+1}.pth"
+                model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_14_59_55/network/policy_{i+1}.pth"
                 # print("policy load from: ",model_path)
                 self.load_saved_network(filename=model_path)
                 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -698,11 +703,6 @@ class LocoSafeDagger():
         plt.grid(True)
         plt.show()
                 
-                
-
-
-        
-        
         # ## Rollout policy once
         # # condition on which iterations to show GUI for Pybullet    
         # # display_simu = False
