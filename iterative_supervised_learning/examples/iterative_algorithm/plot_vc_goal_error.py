@@ -1,10 +1,12 @@
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+import os
 matplotlib.use('TkAgg')  # Use a non-interactive backend
 
 # Read data from the Excel file
-file_path = "error_data.xlsx"  # Replace with your file path
+# file_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/plot/error_data/error_data_20goals_warmup_renewed_policy.xlsx" 
+file_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/plot/error_data/error_data_20goals_no_warmup_renewed_policy.xlsx" 
 error_data = pd.read_excel(file_path, sheet_name=None)  # Read all sheets
 
 # Extract data for plotting
@@ -15,6 +17,11 @@ error_vy_his = pd.DataFrame(error_data['error_vy_his'])
 # Get the number of policies and goals
 num_policies = error_vx_his.shape[0]
 num_goals = error_vx_his.shape[1]
+
+# Define the base directory where plots will be saved
+# save_dir = "./plot/goal_error_policy/20goals_warm_up_renewed_policy"  # Replace with your desired directory path
+save_dir = "./plot/goal_error_policy/20goals_no_warm_up_renewed_policy"  # Replace with your desired directory path
+os.makedirs(save_dir, exist_ok=True)  # Create directory if it doesn't exist
 
 # Plot errors for vx
 plt.figure(figsize=(10, 6))
@@ -68,7 +75,10 @@ for goal_idx in range(num_goals):  # Iterate over each goal
     plt.xticks(range(1, num_policies + 1), labels=[f"Policy {i}" for i in range(1, num_policies + 1)])
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"vx_error_goal_{goal_idx + 1}.png")  # Save plot to file
+    
+    # Save plot to the specified directory
+    save_path = os.path.join(save_dir, f"vx_error_goal_{goal_idx + 1}.png")
+    plt.savefig(save_path)
     plt.show()
 
 # Plot separate graphs for each goal in vy
@@ -87,5 +97,8 @@ for goal_idx in range(num_goals):  # Iterate over each goal
     plt.xticks(range(1, num_policies + 1), labels=[f"Policy {i}" for i in range(1, num_policies + 1)])
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"vy_error_goal_{goal_idx + 1}.png")  # Save plot to file
+    
+    # Save plot to the specified directory
+    save_path = os.path.join(save_dir, f"vy_error_goal_{goal_idx + 1}.png")
+    plt.savefig(save_path)
     plt.show()

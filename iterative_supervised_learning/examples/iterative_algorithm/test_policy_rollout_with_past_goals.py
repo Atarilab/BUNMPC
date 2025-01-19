@@ -591,8 +591,13 @@ class LocoSafeDagger():
                 # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_13_2025_17_09_37/network/policy_{i+1}.pth"
                 # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_10_27_05/network/policy_{i+1}.pth"
                 # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_13_58_14/network/policy_{i+1}.pth"
-                # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_14_39_28/network/policy_{i+1}.pth"
-                model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_14_59_55/network/policy_{i+1}.pth"
+                
+                # 20 goals, no-warm-start, renewed policy
+                model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_14_39_28/network/policy_{i+1}.pth"
+                
+                # 20 goals, warm-start, renewed policy
+                # model_path = f"/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/safedagger/trot/Jan_19_2025_14_59_55/network/policy_{i+1}.pth"
+                
                 # print("policy load from: ",model_path)
                 self.load_saved_network(filename=model_path)
                 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -628,7 +633,10 @@ class LocoSafeDagger():
                         "error_vx_his": error_vx_his,
                         "error_vy_his": error_vy_his,
                     }
-                    self.save_to_excel("error_data.xlsx", error_data)
+                    # save_path = "./plot/error_data/error_data_20goals_warmup_renewed_policy.xlsx"  # Replace with your desired path
+                    save_path = "./plot/error_data/error_data_20goals_no_warmup_renewed_policy.xlsx" 
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)  # Create directory if it doesn't exist
+                    self.save_to_excel(save_path, error_data)
                     
                     # # Convert policy_com_vel to a DataFrame
                     # policy_com_vel_dict = {
