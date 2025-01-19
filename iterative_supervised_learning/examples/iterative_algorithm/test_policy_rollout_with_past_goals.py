@@ -31,6 +31,7 @@ from tkinter.filedialog import askopenfilename
 from networks import GoalConditionedPolicyNet
 import torch.serialization
 from networks import GoalConditionedPolicyNet
+import pandas as pd
 
 # Allowlist the custom class
 torch.serialization.add_safe_globals([GoalConditionedPolicyNet])
@@ -463,6 +464,20 @@ class LocoSafeDagger():
         contact_schedule, cnt_plan = cp.get_contact_schedule(pin_robot, urdf_path, q0, v0, v_des, w_des, self.episode_length_data, start_time)
         return contact_schedule, cnt_plan
     
+    def save_to_excel(self,filename, data_dict):
+        """
+        Save a dictionary of data to an Excel file.
+
+        Args:
+            filename (str): Name of the Excel file to save.
+            data_dict (dict): Dictionary where keys are sheet names and values are 2D arrays or lists.
+        """
+        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+            for sheet_name, data in data_dict.items():
+                df = pd.DataFrame(data)
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+        print(f"Saved data to {filename}")
+        
     def run_unperturbed(self):
         # TODO: run a test
         # 1st: random sample n goals (velocity-conditioned goals for now)
@@ -603,6 +618,23 @@ class LocoSafeDagger():
                     error_vx_his[i,j] = (vx_mean - v_des[0]) ** 2
                     error_vy_his[i,j] = (vy_mean - v_des[1]) ** 2
                     
+                    # Save error_vx_his and error_vy_his to an Excel file
+                    error_data = {
+                        "error_vx_his": error_vx_his,
+                        "error_vy_his": error_vy_his,
+                    }
+                    self.save_to_excel("error_data.xlsx", error_data)
+                    
+                    # # Convert policy_com_vel to a DataFrame
+                    # policy_com_vel_dict = {
+                    #     f"vx (Policy {i+1})": [row[0] for row in policy_com_vel],
+                    #     f"vy (Policy {i+1})": [row[1] for row in policy_com_vel],
+                    #     f"vz (Policy {i+1})": [row[2] for row in policy_com_vel],
+                    # }
+                    # self.save_to_excel(f"policy_com_vel_policy_{i+1}.xlsx", policy_com_vel_dict)
+
+                    ###############################################################################
+                    # plot realized CoM velocity goal
                     # plt.figure(figsize=(10, 5))
                     # # Plot vx over time
                     # plt.plot(vx, color='r',label='vx (Translational velocity in x)', linestyle='-')
@@ -634,7 +666,10 @@ class LocoSafeDagger():
             plt.plot(
                 range(error_vx_his.shape[1]),  # Goal indices
                 error_vx_his[policy_idx, :],  # Errors for the current policy
-                label=f'Policy {policy_idx + 1}'  # Label for each policy
+                label=f'Policy {policy_idx + 1}',  # Label for each policy
+                marker='x',  # Add cross-shaped markers
+                linestyle='-',  # Keep the line style
+                markersize=6  # Adjust marker size
             )
 
         plt.title('Error in vx Across Goals for Different Policies')
@@ -650,7 +685,10 @@ class LocoSafeDagger():
             plt.plot(
                 range(error_vy_his.shape[1]),  # Goal indices
                 error_vy_his[policy_idx, :],  # Errors for the current policy
-                label=f'Policy {policy_idx + 1}'  # Label for each policy
+                label=f'Policy {policy_idx + 1}',  # Label for each policy
+                marker='o',  # Add circular markers
+                linestyle='-',  # Keep the line style
+                markersize=6  # Adjust marker size
             )
 
         plt.title('Error in vy Across Goals for Different Policies')
