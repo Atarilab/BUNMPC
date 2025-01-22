@@ -620,21 +620,25 @@ class LocoSafeDagger():
                     # print([row[0] for row in policy_com_vel])
                     # print([row[1] for row in policy_com_vel])
                     
-                    # visualization
+                    # MSE error calculation
                     vx = [row[0] for row in policy_com_vel]  # First column (vx)
-                    vy = [row[1] for row in policy_com_vel]
-                    vx_mean = np.mean(vx)
-                    vy_mean = np.mean(vy)
-                    error_vx_his[i,j] = (vx_mean - v_des[0]) ** 2
-                    error_vy_his[i,j] = (vy_mean - v_des[1]) ** 2
+                    vy = [row[1] for row in policy_com_vel]  # Second column (vy)
+
+                    # Compute MSE for vx and vy
+                    mse_vx = np.mean([(v - v_des[0]) ** 2 for v in vx])  # MSE for vx
+                    mse_vy = np.mean([(v - v_des[1]) ** 2 for v in vy])  # MSE for vy
+
+                    error_vx_his[i, j] = mse_vx
+                    error_vy_his[i, j] = mse_vy
+
                     
                     # Save error_vx_his and error_vy_his to an Excel file
                     error_data = {
                         "error_vx_his": error_vx_his,
                         "error_vy_his": error_vy_his,
                     }
-                    # save_path = "./plot/error_data/error_data_20goals_warmup_renewed_policy.xlsx"  # Replace with your desired path
-                    save_path = "./plot/error_data/error_data_20goals_no_warmup_renewed_policy.xlsx" 
+                    save_path = "./plot/error_data/error_data_20goals_warmup_renewed_policy.xlsx"  # Replace with your desired path
+                    # save_path = "./plot/error_data/error_data_20goals_no_warmup_renewed_policy.xlsx" 
                     os.makedirs(os.path.dirname(save_path), exist_ok=True)  # Create directory if it doesn't exist
                     self.save_to_excel(save_path, error_data)
                     

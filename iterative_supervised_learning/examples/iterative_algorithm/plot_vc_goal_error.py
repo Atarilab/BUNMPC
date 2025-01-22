@@ -5,8 +5,8 @@ import os
 matplotlib.use('TkAgg')  # Use a non-interactive backend
 
 # Read data from the Excel file
-# file_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/plot/error_data/error_data_20goals_warmup_renewed_policy.xlsx" 
-file_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/plot/error_data/error_data_20goals_no_warmup_renewed_policy.xlsx" 
+file_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/plot/error_data/error_data_20goals_warmup_renewed_policy.xlsx" 
+# file_path = "/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/plot/error_data/error_data_20goals_no_warmup_renewed_policy.xlsx" 
 error_data = pd.read_excel(file_path, sheet_name=None)  # Read all sheets
 
 # Extract data for plotting
