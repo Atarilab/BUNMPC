@@ -195,7 +195,8 @@ class BehavioralCloning():
         """run training
         """           
         
-        database_dir = '/home/atari_ws/data/behavior_cloning/trot/bc_benchmark_3/dataset'
+        # database_dir = '/home/atari_ws/data/behavior_cloning/trot/bc_benchmark_3/dataset'
+        database_dir = '/home/atari_ws/iterative_supervised_learning/examples/iterative_algorithm/data/behavior_cloning/trot/Jan_22_2025_10_33_55/dataset'
         raw_files = os.listdir(database_dir)
         
         files = []
